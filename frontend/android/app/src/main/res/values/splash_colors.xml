@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matchflix maroon, shown while the app launches -->
+    <color name="splashBackground">#800020</color>
+</resources>

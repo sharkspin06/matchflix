@@ -1,10 +1,16 @@
 'use client';
 
+import { API_URL } from '@/lib/config';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, X, Heart, Star, MessageCircle, User, Zap, Home, Users, ThumbsUp, ThumbsDown, LogOut } from 'lucide-react';
+import { Sparkles, X, Heart, Star, MessageCircle, User, Zap, Home, Users, LogOut, MapPin, Film, ChevronUp, ChevronDown, Moon, GraduationCap, PawPrint, Wine, Cigarette, Navigation, Target, UserRound } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import LogoutDialog from '@/components/LogoutDialog';
+import PhotoCarousel from '@/components/PhotoCarousel';
+import MatchModal from '@/components/MatchModal';
+import ProfileSheet from '@/components/ProfileSheet';
+import { getMyUserId, markMatchesSeen } from '@/lib/seenMatches';
 import { notificationService } from '@/lib/notifications';
 
 export default function DiscoverPage() {
@@ -24,6 +30,19 @@ export default function DiscoverPage() {
   const [seenProfileIds, setSeenProfileIds] = useState<number[]>([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchedUser, setMatchedUser] = useState<any>(null);
+  const [myPhoto, setMyPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API_URL}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        const photo = me?.photos?.[0];
+        if (photo) setMyPhoto(photo.startsWith('http') ? photo : `${API_URL}${photo}`);
+      })
+      .catch(() => {});
+  }, []);
   const [likedYouCount, setLikedYouCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -47,7 +66,7 @@ export default function DiscoverPage() {
         return;
       }
 
-      const response = await fetch('http://localhost:5001/api/users/discover', {
+      const response = await fetch(`${API_URL}/api/users/discover`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -74,7 +93,7 @@ export default function DiscoverPage() {
             const photoPath = profile.photos[0];
             imageUrl = photoPath.startsWith('http') 
               ? photoPath 
-              : `http://localhost:5001${photoPath}`;
+              : `${API_URL}${photoPath}`;
           }
           
           return {
@@ -84,6 +103,9 @@ export default function DiscoverPage() {
             location: profile.location || 'Unknown',
             occupation: profile.bio || '',
             image: imageUrl,
+            photos: (profile.photos || []).map((photoPath: string) =>
+              photoPath.startsWith('http') ? photoPath : `${API_URL}${photoPath}`
+            ),
             bio: profile.bio || '',
             about: profile.bio || '',
             interests: profile.interests || [],
@@ -98,7 +120,7 @@ export default function DiscoverPage() {
             relationshipGoals: profile.relationshipGoals || [],
             matchScore: profile.matchScore || 0,
             topFilms: (profile.topFilms || []).map((poster: string) => ({ 
-              poster: poster.startsWith('http') ? poster : `http://localhost:5001${poster}` 
+              poster: poster.startsWith('http') ? poster : `${API_URL}${poster}` 
             })),
             distance: profile.distance !== undefined ? `${profile.distance} km away` : undefined,
           };
@@ -122,7 +144,7 @@ export default function DiscoverPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/likes/received', {
+      const response = await fetch(`${API_URL}/api/likes/received`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -142,7 +164,7 @@ export default function DiscoverPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/messages/unread/count', {
+      const response = await fetch(`${API_URL}/api/messages/unread/count`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -162,8 +184,9 @@ export default function DiscoverPage() {
   };
 
   const confirmLogout = () => {
+    setShowLogoutModal(false);
     localStorage.removeItem('token');
-    router.push('/');
+    router.replace('/');
   };
 
   const profile = profiles[currentProfile];
@@ -187,7 +210,7 @@ export default function DiscoverPage() {
         console.log('Sending like to user:', currentProfileData.userId, currentProfileData.name);
         try {
           if (token) {
-            const response = await fetch('http://localhost:5001/api/likes', {
+            const response = await fetch(`${API_URL}/api/likes`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -212,6 +235,9 @@ export default function DiscoverPage() {
                   userId: currentProfileData.userId
                 });
                 setShowMatchModal(true);
+                // Celebrated here, so the app-wide match watcher won't show it again
+                const myUserId = getMyUserId();
+                if (myUserId) markMatchesSeen(myUserId, [currentProfileData.userId]);
               }
             } else {
               console.error('❌ Failed to send like. Status:', response.status);
@@ -229,7 +255,7 @@ export default function DiscoverPage() {
         console.log('Sending pass for user:', currentProfileData.userId, currentProfileData.name);
         try {
           if (token) {
-            const response = await fetch('http://localhost:5001/api/passes', {
+            const response = await fetch(`${API_URL}/api/passes`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -270,6 +296,9 @@ export default function DiscoverPage() {
       
       // End transition
       setIsTransitioning(false);
+
+      // Anyone just liked back or passed drops off the Likes badge
+      fetchLikedYouCount();
     }, 300);
   };
 
@@ -325,11 +354,28 @@ export default function DiscoverPage() {
     }
   };
 
+  // Shown on every Discover screen: a match can land just as the last card runs out
+  const matchModal = (
+    <MatchModal
+      open={showMatchModal}
+      myImage={myPhoto}
+      them={matchedUser}
+      onClose={() => setShowMatchModal(false)}
+      onMessage={() => {
+        setShowMatchModal(false);
+        if (matchedUser) router.push(`/messages/chat?userId=${matchedUser.userId}`);
+      }}
+    />
+  );
+
   if (!mounted || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading profiles...</div>
-      </div>
+      <>
+        <div className="theme-surface min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-gray-600">Loading profiles...</div>
+        </div>
+        {matchModal}
+      </>
     );
   }
 
@@ -337,31 +383,15 @@ export default function DiscoverPage() {
     return (
       <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         {/* Header */}
-        <header className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4 flex items-center justify-center relative`}>
+        <header className={`min-h-[72px] ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4 flex items-center justify-center relative`}>
           {/* Theme Toggle */}
           <div className="absolute left-6">
             <ThemeToggle />
           </div>
-          <h1 
-            className="text-3xl font-bold" 
-            style={{ 
-              fontFamily: 'Kavoon, cursive',
-              fontWeight: 400,
-              fontStyle: 'normal',
-              background: 'linear-gradient(135deg, #800020 0%, #ff6b6b 50%, #800020 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.3)',
-              textShadow: '0 0 1px rgba(255, 255, 255, 0.2)'
-            }}
-          >
-            Matchflix
-          </h1>
           {/* Logout Button */}
           <button
             onClick={handleLogout}
-            className={`absolute right-6 flex items-center gap-2 px-4 py-2 transition-colors ${isDarkMode ? 'text-gray-300 hover:text-[#800020]' : 'text-gray-600 hover:text-[#800020]'}`}
+            className={`absolute right-6 flex items-center gap-2 px-4 py-2 transition-all duration-200 ease-out ${isDarkMode ? 'text-gray-300 hover:text-[#1f2937]' : 'text-gray-600 hover:text-[#1f2937]'}`}
           >
             <LogOut className="w-5 h-5" />
             <span className="text-sm font-medium">Logout</span>
@@ -374,7 +404,7 @@ export default function DiscoverPage() {
             <p className={`text-xl mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>No more profiles to show</p>
             <button 
               onClick={() => router.push('/')}
-              className="px-6 py-2 bg-[#800020] text-white rounded-lg hover:bg-[#660019] transition-colors"
+              className="px-6 py-2 bg-[#1f2937] text-white rounded-lg hover:bg-[#111827] transition-all duration-200 ease-out"
             >
               Go Home
             </button>
@@ -386,7 +416,7 @@ export default function DiscoverPage() {
           <div className="max-w-md mx-auto flex items-center justify-around">
             <button 
               onClick={() => router.push('/home')}
-              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
             >
               <Home className="w-6 h-6 transition-transform duration-300" />
               <span className="text-[10px] font-semibold mt-0.5">Home</span>
@@ -394,12 +424,12 @@ export default function DiscoverPage() {
             
             <button 
               onClick={() => router.push('/liked-you')}
-              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
             >
               <div className="relative">
                 <Heart className="w-6 h-6 transition-transform duration-300" />
                 {likedYouCount > 0 && (
-                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-pink-500 to-red-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                  <div className="absolute -top-2 -right-2 bg-[#1f2937] text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                     {likedYouCount > 9 ? '9+' : likedYouCount}
                   </div>
                 )}
@@ -407,7 +437,7 @@ export default function DiscoverPage() {
               <span className="text-[10px] font-semibold mt-0.5">Liked</span>
             </button>
             
-            <button className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-pink-400/10 text-pink-400' : 'bg-[#800020]/10 text-[#800020]'}`}>
+            <button className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-gray-300/10 text-gray-300' : 'bg-[#1f2937]/10 text-[#1f2937]'}`}>
               <svg className="w-6 h-6 transition-transform duration-300" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="2" y="6" width="20" height="3" rx="1.5"/>
                 <rect x="2" y="11" width="20" height="3" rx="1.5"/>
@@ -418,12 +448,12 @@ export default function DiscoverPage() {
             
             <button 
               onClick={() => router.push('/messages')}
-              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
             >
               <div className="relative">
                 <MessageCircle className="w-6 h-6 transition-transform duration-300" />
                 {unreadCount > 0 && (
-                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                  <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </div>
                 )}
@@ -433,13 +463,20 @@ export default function DiscoverPage() {
             
             <button 
               onClick={() => router.push('/matches')}
-              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+              className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
             >
               <Users className="w-6 h-6 transition-transform duration-300" />
               <span className="text-[10px] font-semibold mt-0.5">Matches</span>
             </button>
           </div>
         </nav>
+        <LogoutDialog
+          open={showLogoutModal}
+          onCancel={() => setShowLogoutModal(false)}
+          onConfirm={confirmLogout}
+          isDarkMode={isDarkMode}
+        />
+        {matchModal}
       </div>
     );
   }
@@ -447,40 +484,16 @@ export default function DiscoverPage() {
   return (
     <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <header className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4 flex items-center justify-center relative`}>
+      <header className={`min-h-[72px] ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4 flex items-center justify-center relative`}>
         {/* Theme Toggle */}
         <div className="absolute left-6">
           <ThemeToggle />
         </div>
 
-        <div className="flex items-center gap-3">
-          <img 
-            src="/images/mflogo.png" 
-            alt="MatchFlix Logo" 
-            className="w-10 h-10 object-contain"
-            style={{ filter: 'drop-shadow(0 0 1px white) drop-shadow(0 0 1px white)' }}
-          />
-          <h1 
-            className="text-3xl font-bold" 
-            style={{ 
-              fontFamily: '"Kavoon", serif', 
-              fontWeight: 400, 
-              fontStyle: 'normal',
-              background: 'linear-gradient(135deg, #800020 0%, #ff6b6b 50%, #800020 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.3)',
-              textShadow: '0 0 1px rgba(255, 255, 255, 0.2)'
-            }}
-          >
-            Matchflix
-          </h1>
-        </div>
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className={`absolute right-6 flex items-center gap-2 px-4 py-2 transition-colors ${isDarkMode ? 'text-gray-300 hover:text-[#800020]' : 'text-gray-600 hover:text-[#800020]'}`}
+          className={`absolute right-6 flex items-center gap-2 px-4 py-2 transition-all duration-200 ease-out ${isDarkMode ? 'text-gray-300 hover:text-[#1f2937]' : 'text-gray-600 hover:text-[#1f2937]'}`}
         >
           <LogOut className="w-5 h-5" />
           <span className="text-sm font-medium">Logout</span>
@@ -488,13 +501,13 @@ export default function DiscoverPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center p-4 pb-24">
-        <div className="w-full max-w-xs flex-1 flex flex-col justify-center max-h-[calc(100vh-160px)]">
+      <main className="flex-1 flex items-center justify-center px-4 pt-4 pb-28">
+        <div className="w-full max-w-sm flex flex-col items-center">
           {/* Profile Card */}
-          <div 
-            className={`relative bg-white rounded-3xl overflow-hidden border-6 border-white shadow-[0_20px_60px_rgba(0,0,0,0.5)] cursor-grab active:cursor-grabbing select-none transition-opacity duration-300 h-[550px] ${isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+          <div
+            className={`relative w-full h-[min(620px,calc(100dvh-260px))] min-h-[460px] rounded-[28px] overflow-hidden bg-[#111827] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.45)] ring-1 ring-black/5 cursor-grab active:cursor-grabbing select-none touch-pan-y ${isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
             style={{
-              transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${dragOffset.x * 0.1}deg)`,
+              transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${dragOffset.x * 0.08}deg)`,
               transition: isDragging ? 'none' : isTransitioning ? 'all 0.3s ease-out' : 'transform 0.3s ease-out',
             }}
             onMouseDown={handleDragStart}
@@ -506,107 +519,155 @@ export default function DiscoverPage() {
             onTouchEnd={handleDragEnd}
             onClick={handleCardClick}
           >
-            {/* Background Color */}
-            <div className="relative h-[550px] bg-[#800020]">
-              
-              {/* Swipe Indicators */}
-              {isDragging && dragOffset.x > 50 && (
-                <div className="absolute top-8 right-8 z-50">
-                  <div className="bg-green-500 text-white p-4 rounded-full shadow-2xl border-4 border-white">
-                    <ThumbsUp className="w-12 h-12" strokeWidth={3} />
-                  </div>
+            {/* Top 4 Films */}
+            <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-1 p-1">
+              {profile.topFilms?.map((film: any, index: number) => (
+                <div key={index} className="rounded-[22px] overflow-hidden bg-gray-800">
+                  <img
+                    src={film.poster}
+                    alt={`Film ${index + 1}`}
+                    draggable={false}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://via.placeholder.com/400x600/1f2937/ffffff?text=Film';
+                    }}
+                  />
                 </div>
-              )}
-              {isDragging && dragOffset.x < -50 && (
-                <div className="absolute top-8 left-8 z-50">
-                  <div className="bg-red-500 text-white p-4 rounded-full shadow-2xl border-4 border-white">
-                    <ThumbsDown className="w-12 h-12" strokeWidth={3} />
-                  </div>
-                </div>
-              )}
-              
-              {/* Top 4 Films Grid - Full Coverage */}
-              <div className="absolute inset-0 grid grid-cols-2 gap-2 p-4">
-                {profile.topFilms?.map((film: any, index: number) => (
-                  <div key={index} className="rounded-xl overflow-hidden">
-                    <img 
-                      src={film.poster} 
-                      alt={`Film ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://via.placeholder.com/400x600/800020/ffffff?text=Film';
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
+              ))}
+            </div>
 
-              {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80"></div>
+            {/* Top label */}
+            <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md text-white text-xs font-semibold tracking-wide flex items-center gap-1.5 pointer-events-none">
+              <Film className="w-3.5 h-3.5" />
+              Top 4 films
+            </div>
 
-              {/* Profile Info */}
-              <div className="absolute bottom-8 left-0 right-0 p-5 text-white">
-                <div className="flex items-center gap-3 mb-2">
-                  {/* Profile Picture Circle */}
-                  <div className="w-16 h-16 rounded-full border-4 border-white overflow-hidden flex-shrink-0 shadow-lg">
-                    <img 
-                      src={profile.image} 
+            {/* Swipe feedback: a colored glow from the swipe side and a badge that grows in */}
+            {(() => {
+              const likeProgress = isDragging ? Math.min(Math.max((dragOffset.x - 20) / 100, 0), 1) : 0;
+              const nopeProgress = isDragging ? Math.min(Math.max((-dragOffset.x - 20) / 100, 0), 1) : 0;
+              const badge = (progress: number) => ({
+                opacity: progress,
+                transform: `translateX(-50%) scale(${0.6 + progress * 0.4})`,
+              });
+              return (
+                <>
+                  <div
+                    className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-l from-emerald-500/55 via-emerald-500/15 to-transparent"
+                    style={{ opacity: likeProgress }}
+                  />
+                  <div
+                    className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-r from-rose-500/55 via-rose-500/15 to-transparent"
+                    style={{ opacity: nopeProgress }}
+                  />
+
+                  <div className="absolute top-1/3 left-1/2 z-30 pointer-events-none" style={badge(likeProgress)}>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-24 h-24 rounded-full bg-white/95 shadow-[0_12px_40px_rgba(16,185,129,0.55)] flex items-center justify-center ring-4 ring-emerald-400/60">
+                        <Heart className="w-12 h-12 text-emerald-500" fill="currentColor" />
+                      </div>
+                      <span className="px-4 py-1 rounded-full bg-emerald-500 text-white text-sm font-extrabold tracking-[0.2em] shadow-lg">
+                        LIKE
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="absolute top-1/3 left-1/2 z-30 pointer-events-none" style={badge(nopeProgress)}>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-24 h-24 rounded-full bg-white/95 shadow-[0_12px_40px_rgba(244,63,94,0.55)] flex items-center justify-center ring-4 ring-rose-400/60">
+                        <X className="w-12 h-12 text-rose-500" strokeWidth={3.5} />
+                      </div>
+                      <span className="px-4 py-1 rounded-full bg-rose-500 text-white text-sm font-extrabold tracking-[0.2em] shadow-lg">
+                        NOPE
+                      </span>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* Fade for readable text */}
+            <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none" />
+
+            {/* Profile Info */}
+            <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+              <div className="flex items-end gap-4">
+                <div className="relative flex-shrink-0">
+                  <div className="w-24 h-24 rounded-full p-[3px] bg-white/90 shadow-xl">
+                    <img
+                      src={profile.image}
                       alt={profile.name}
-                      className="w-full h-full object-cover"
+                      draggable={false}
+                      className="w-full h-full rounded-full object-cover"
                       onError={(e) => {
                         e.currentTarget.src = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop';
                       }}
                     />
                   </div>
-                  
-                  {/* Name and Details */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-3xl font-bold">{profile.name}, {profile.age}</h2>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm mb-2">
-                      <span>{profile.location}</span>
-                    </div>
-                    {/* Film Genres */}
-                    {profile.favoriteGenres && profile.favoriteGenres.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {profile.favoriteGenres.map((genre: string, index: number) => (
-                          <span 
-                            key={index}
-                            className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium border border-white/30"
-                          >
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
+
+                <div className="min-w-0 flex-1 pb-1">
+                  <h2 className="text-[28px] leading-tight font-extrabold tracking-tight truncate">
+                    {profile.name}
+                    <span className="font-light text-white/90">, {profile.age}</span>
+                  </h2>
+                  {profile.location && (
+                    <p className="mt-1 flex items-center gap-1 text-sm text-white/80">
+                      <MapPin className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{profile.location}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {profile.favoriteGenres && profile.favoriteGenres.length > 0 && (
+                <div className="flex flex-nowrap items-center gap-1.5 mt-3 overflow-hidden">
+                  {profile.favoriteGenres.slice(0, 3).map((genre: string, index: number) => (
+                    <span
+                      key={index}
+                      className="flex-shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md ring-1 ring-inset ring-white/25 text-[11px] font-medium tracking-wide text-white/95"
+                    >
+                      {genre}
+                    </span>
+                  ))}
+                  {profile.favoriteGenres.length > 3 && (
+                    <span className="flex-shrink-0 whitespace-nowrap px-2 py-1 rounded-full bg-white/90 text-gray-900 text-[11px] font-semibold">
+                      +{profile.favoriteGenres.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center justify-center gap-1 text-[11px] font-medium text-white/60">
+                <ChevronUp className="w-3.5 h-3.5" />
+                Tap to see full profile
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-center gap-4 mt-6">
-            {/* Pass Button */}
-            <button 
+          <div className="flex items-center justify-center gap-5 mt-6">
+            <button
               onClick={() => handleSwipe('left')}
-              className="w-16 h-16 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 hover:border-red-400 hover:-translate-y-1 transition-all duration-300 group active:scale-95"
+              aria-label="Pass"
+              className={`group w-16 h-16 rounded-full flex items-center justify-center shadow-[0_8px_24px_-6px_rgba(0,0,0,0.25)] transition-all duration-200 hover:scale-105 active:scale-90 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
             >
-              <X className="w-8 h-8 text-gray-600 group-hover:text-red-500 transition-colors duration-300" strokeWidth={3} />
+              <X className="w-7 h-7 text-gray-500 group-hover:text-red-500 transition-all duration-200 ease-out" strokeWidth={3} />
             </button>
 
-            {/* Like Button */}
-            <button 
+            <button
               onClick={() => handleSwipe('right')}
-              className="w-20 h-20 rounded-full bg-[#800020] hover:bg-[#660019] flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-110 hover:-translate-y-1 transition-all duration-300 active:scale-95"
+              aria-label="Like"
+              className="w-20 h-20 rounded-full bg-[#1f2937] hover:bg-[#111827] flex items-center justify-center shadow-[0_12px_28px_-8px_rgba(17,24,39,0.7)] transition-all duration-200 hover:scale-105 active:scale-90"
             >
-              <Heart className="w-10 h-10 text-white transition-transform duration-300 group-hover:scale-110" fill="white" />
+              <Heart className="w-9 h-9 text-white" fill="white" />
             </button>
 
-            {/* Star Button */}
-            <button className="w-16 h-16 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center shadow-lg hover:shadow-2xl hover:scale-110 hover:border-blue-400 hover:-translate-y-1 transition-all duration-300 group active:scale-95">
-              <Star className="w-7 h-7 text-gray-600 group-hover:text-blue-500 group-hover:fill-blue-500 transition-all duration-300" />
+            <button
+              aria-label="Super like"
+              className={`group w-16 h-16 rounded-full flex items-center justify-center shadow-[0_8px_24px_-6px_rgba(0,0,0,0.25)] transition-all duration-200 hover:scale-105 active:scale-90 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
+            >
+              <Star className="w-7 h-7 text-gray-500 group-hover:text-amber-400 group-hover:fill-amber-400 transition-all duration-200 ease-out" strokeWidth={2.5} />
             </button>
           </div>
         </div>
@@ -617,7 +678,7 @@ export default function DiscoverPage() {
         <div className="max-w-md mx-auto flex items-center justify-around">
           <button 
             onClick={() => router.push('/home')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <Home className="w-6 h-6 transition-transform duration-300" />
             <span className="text-[10px] font-semibold mt-0.5">Home</span>
@@ -625,12 +686,12 @@ export default function DiscoverPage() {
           
           <button 
             onClick={() => router.push('/liked-you')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <div className="relative">
               <Heart className="w-6 h-6 transition-transform duration-300" />
               {likedYouCount > 0 && (
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-pink-500 to-red-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-[#1f2937] text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                   {likedYouCount > 9 ? '9+' : likedYouCount}
                 </div>
               )}
@@ -638,7 +699,7 @@ export default function DiscoverPage() {
             <span className="text-[10px] font-semibold mt-0.5">Liked</span>
           </button>
           
-          <button className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-pink-400/10 text-pink-400' : 'bg-[#800020]/10 text-[#800020]'}`}>
+          <button className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-gray-300/10 text-gray-300' : 'bg-[#1f2937]/10 text-[#1f2937]'}`}>
             <svg className="w-6 h-6 transition-transform duration-300" viewBox="0 0 24 24" fill="currentColor">
               <rect x="2" y="6" width="20" height="3" rx="1.5"/>
               <rect x="2" y="11" width="20" height="3" rx="1.5"/>
@@ -649,12 +710,12 @@ export default function DiscoverPage() {
           
           <button 
             onClick={() => router.push('/messages')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <div className="relative">
               <MessageCircle className="w-6 h-6 transition-transform duration-300" />
               {unreadCount > 0 && (
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </div>
               )}
@@ -664,7 +725,7 @@ export default function DiscoverPage() {
           
           <button 
             onClick={() => router.push('/matches')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <Users className="w-6 h-6 transition-transform duration-300" />
             <span className="text-[10px] font-semibold mt-0.5">Matches</span>
@@ -672,258 +733,26 @@ export default function DiscoverPage() {
         </div>
       </nav>
 
-      {/* Profile Details Modal */}
-      {showProfileDetails && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowProfileDetails(false)}>
-          <div 
-            className={`w-full max-w-sm h-[550px] ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl overflow-hidden border-8 border-white shadow-[0_20px_60px_rgba(0,0,0,0.5)]`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close Button */}
-            <button 
-              onClick={() => setShowProfileDetails(false)}
-              className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors z-10"
-            >
-              <X className="w-6 h-6 text-white" />
-            </button>
+      {/* Full profile */}
+      <ProfileSheet
+        open={showProfileDetails}
+        profile={profile}
+        isDarkMode={isDarkMode}
+        onClose={() => setShowProfileDetails(false)}
+        onPass={() => handleSwipe('left')}
+        onLike={() => handleSwipe('right')}
+      />
 
-            {/* Scrollable Content */}
-            <div className="overflow-y-auto h-full">
-              {/* Profile Image */}
-              <div className="relative h-72">
-                <img 
-                  src={profile.image} 
-                  alt={profile.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&h=600&fit=crop';
-                  }}
-                />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-6">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-3xl font-bold text-white">{profile.name}, {profile.age}</h2>
-                  </div>
-                  <p className="text-white/90 text-sm">{profile.location}</p>
-                </div>
-              </div>
+      {/* Logout confirmation */}
+      <LogoutDialog
+        open={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+        isDarkMode={isDarkMode}
+      />
 
-              {/* Content */}
-              <div className="p-6 space-y-6">
-                {/* About Section */}
-                <div>
-                  <h3 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    <User className="w-4 h-4" />
-                    About {profile.name}
-                  </h3>
-                  <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{profile.bio}</p>
-                </div>
-
-                {/* Location */}
-                {profile.location_detail && (
-                  <div>
-                    <h3 className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {profile.name}'s location
-                    </h3>
-                    <p className={`text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{profile.location_detail}</p>
-                    {profile.lives_in && (
-                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>🇵🇭 Lives in {profile.lives_in}</p>
-                    )}
-                    {profile.distance && (
-                      <p className={`text-sm font-medium mt-1 ${isDarkMode ? 'text-gray-300' : 'text-[#800020]'}`}>
-                        📍 {profile.distance}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Favorite Film Genres */}
-                {profile.favoriteGenres && (
-                  <div>
-                    <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {profile.name}'s favorite film genres
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.favoriteGenres.map((genre: string, index: number) => (
-                        <div 
-                          key={index}
-                          className="px-4 py-2 bg-[#800020] text-white rounded-full text-sm font-semibold shadow-md"
-                        >
-                          {genre}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Basics */}
-                {(profile.zodiac || profile.education || profile.pets || profile.drinkingHabits || profile.smokingHabits) && (
-                  <div>
-                    <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Basics</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.zodiac && (
-                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <svg className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                          </svg>
-                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{profile.zodiac}</span>
-                        </div>
-                      )}
-                      {profile.education && (
-                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <svg className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                          </svg>
-                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{profile.education}</span>
-                        </div>
-                      )}
-                      {profile.pets && (
-                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>🐾 {profile.pets}</span>
-                        </div>
-                      )}
-                      {profile.drinkingHabits && (
-                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>🍷 {profile.drinkingHabits}</span>
-                        </div>
-                      )}
-                      {profile.smokingHabits && (
-                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>🚬 {profile.smokingHabits}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* How They Identify */}
-                {profile.gender && (
-                  <div>
-                    <h3 className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>How they identify</h3>
-                    <p className={`text-base font-medium capitalize ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{profile.gender}</p>
-                  </div>
-                )}
-
-                {/* What They're Looking For */}
-                {profile.preferredGender && profile.preferredGender.length > 0 && (
-                  <div>
-                    <h3 className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Looking for</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.preferredGender.map((gender: string, index: number) => (
-                        <span 
-                          key={index}
-                          className={`px-4 py-2 rounded-full text-sm font-medium capitalize ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'}`}
-                        >
-                          {gender}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Relationship Goals */}
-                {profile.relationshipGoals && profile.relationshipGoals.length > 0 && (
-                  <div>
-                    <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Relationship Goals</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.relationshipGoals.map((goal: string, index: number) => (
-                        <span 
-                          key={index}
-                          className="px-4 py-2 bg-[#800020]/10 text-[#800020] rounded-full text-sm font-medium border border-[#800020]/20"
-                        >
-                          {goal}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <LogOut className="w-8 h-8 text-[#800020]" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Logout</h2>
-              <p className="text-gray-600">Are you sure you want to logout?</p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmLogout}
-                className="flex-1 py-3 px-6 bg-[#800020] text-white rounded-lg hover:bg-[#660019] transition-colors font-medium"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Match Notification Modal */}
-      {showMatchModal && matchedUser && (
-        <div 
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fadeIn backdrop-blur-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div 
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 text-center animate-scaleIn"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Celebration Icon */}
-            <div className="mb-6">
-              <div className="w-24 h-24 mx-auto bg-gradient-to-br from-pink-100 to-red-100 rounded-full flex items-center justify-center mb-4 animate-bounce">
-                <Heart className="w-12 h-12 text-[#800020] fill-[#800020]" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">It's a Match!</h2>
-              <p className="text-gray-600">You and {matchedUser.name} liked each other</p>
-            </div>
-
-            {/* Matched User Image */}
-            <div className="mb-6">
-              <img
-                src={matchedUser.image}
-                alt={matchedUser.name}
-                className="w-32 h-32 rounded-full object-cover mx-auto ring-4 ring-[#800020] shadow-lg"
-              />
-              <p className="mt-3 text-xl font-semibold text-gray-800">{matchedUser.name}</p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowMatchModal(false)}
-                className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
-              >
-                Keep Swiping
-              </button>
-              <button
-                onClick={() => {
-                  setShowMatchModal(false);
-                  router.push(`/messages/${matchedUser.userId}`);
-                }}
-                className="flex-1 px-6 py-3 bg-[#800020] hover:bg-[#660019] text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <MessageCircle className="w-5 h-5" />
-                Send Message
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Match celebration */}
+      {matchModal}
     </div>
   );
 }

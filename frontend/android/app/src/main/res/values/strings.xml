@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MatchFlix</string>
+    <string name="title_activity_main">MatchFlix</string>
+    <string name="package_name">com.matchflix.app</string>
+    <string name="custom_url_scheme">com.matchflix.app</string>
+</resources>

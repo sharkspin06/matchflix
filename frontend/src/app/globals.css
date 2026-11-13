@@ -6,7 +6,143 @@
   body {
     @apply bg-gray-50 text-gray-900;
   }
+
+  /* Stop sideways swipes (trackpad or touch overscroll) from triggering the
+     browser's Back/Forward navigation, so swiping cards on Discover stays in the app */
+  html,
+  body {
+    overscroll-behavior-x: none;
+  }
+
+  /* Smooth motion for every button and link. :where() keeps this at zero
+     specificity, so any Tailwind transition/duration class still wins. */
+  :where(button, a, [role='button'], label:has(> input[type='file'])) {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke,
+      opacity, box-shadow, transform, translate, scale, filter;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Gentle press feedback; uses the separate `scale` property so it stacks
+     with any Tailwind transform (translate, rotate) instead of replacing it */
+  :where(button, [role='button']):not(:disabled):active {
+    scale: 0.97;
+  }
+
+  :where(button, a, [role='button']):focus-visible {
+    outline: 2px solid #1f2937;
+    outline-offset: 3px;
+  }
+
+  :where(button, [role='button']):disabled {
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    :where(button, [role='button']):not(:disabled):active {
+      scale: 1;
+    }
+  }
 }
+
+/*
+  Dark mode for screens built with light colors (Edit Profile and its pickers).
+  Add `theme-surface` to the screen's root; when <html> has `dark`, the light
+  colors inside it are swapped for dark ones. Kept outside @layer so these
+  win over the plain Tailwind classes they replace.
+*/
+.dark .theme-surface {
+  color-scheme: dark;
+  color: #f3f4f6;
+}
+.dark .theme-surface.bg-white,
+.dark .theme-surface.bg-gray-50 { background-color: #111827; }
+
+/* Whole page background in dark mode (shows behind short pages and when overscrolling) */
+.dark body { background-color: #111827; color: #f3f4f6; }
+
+/* Elements that must match the page itself (e.g. a label sitting on a divider line) */
+.dark .theme-surface .page-bg.page-bg { background-color: #111827; }
+
+/* Error banners and red helper text */
+.dark .theme-surface .bg-red-50 { background-color: rgb(127 29 29 / 0.25); }
+.dark .theme-surface .border-red-300 { border-color: rgb(248 113 113 / 0.4); }
+.dark .theme-surface .text-red-600 { color: #fca5a5; }
+.dark .theme-surface .hover\:bg-red-50:hover { background-color: rgb(127 29 29 / 0.3); }
+/* Green "available / done" text stays readable */
+.dark .theme-surface .text-emerald-600 { color: #6ee7b7; }
+
+/* Surfaces */
+.dark .theme-surface .bg-white { background-color: #1f2937; }
+.dark .theme-surface .bg-white\/90 { background-color: rgb(17 24 39 / 0.9); }
+.dark .theme-surface .bg-white\/60 { background-color: rgb(17 24 39 / 0.6); }
+.dark .theme-surface .bg-gray-50 { background-color: #1f2937; }
+.dark .theme-surface .bg-gray-100 { background-color: #2b3545; }
+.dark .theme-surface .bg-gray-200 { background-color: #374151; }
+.dark .theme-surface .hover\:bg-gray-50:hover,
+.dark .theme-surface .hover\:bg-gray-50\/60:hover { background-color: #263142; }
+.dark .theme-surface .hover\:bg-gray-100:hover,
+.dark .theme-surface .hover\:bg-gray-200:hover,
+.dark .theme-surface .group:hover .group-hover\:bg-gray-200 { background-color: #374151; }
+
+/* Plain form fields that rely on the browser's white default */
+.dark .theme-surface input:not([type='range']):not([type='checkbox']):not([type='radio']),
+.dark .theme-surface textarea,
+.dark .theme-surface select {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
+/* Text */
+.dark .theme-surface .text-gray-900,
+.dark .theme-surface .text-gray-800,
+.dark .theme-surface .text-\[\#1f2937\] { color: #f3f4f6; }
+.dark .theme-surface .text-gray-700 { color: #e5e7eb; }
+.dark .theme-surface .text-gray-600 { color: #d1d5db; }
+.dark .theme-surface .text-gray-500 { color: #9ca3af; }
+.dark .theme-surface .text-gray-400 { color: #8b93a1; }
+.dark .theme-surface .text-gray-300 { color: #6b7280; }
+.dark .theme-surface .hover\:text-gray-900:hover,
+.dark .theme-surface .hover\:text-gray-700:hover,
+.dark .theme-surface .group:hover .group-hover\:text-gray-500 { color: #f3f4f6; }
+.dark .theme-surface .placeholder\:text-gray-400::placeholder,
+.dark .theme-surface .placeholder\:text-gray-300::placeholder,
+.dark .theme-surface input::placeholder,
+.dark .theme-surface textarea::placeholder { color: #6b7280; }
+
+/* Borders */
+.dark .theme-surface .border-gray-100,
+.dark .theme-surface .border-gray-200,
+.dark .theme-surface .divide-gray-100 > * + * { border-color: #374151; }
+.dark .theme-surface .border-gray-300 { border-color: #4b5563; }
+.dark .theme-surface .hover\:border-gray-300:hover { border-color: #6b7280; }
+.dark .theme-surface .ring-gray-100,
+.dark .theme-surface .ring-gray-200 { --tw-ring-color: #374151; }
+
+/* The dark accent flips to light so selected items and main buttons still stand out */
+.dark .theme-surface .bg-\[\#1f2937\] { background-color: #e5e7eb; }
+.dark .theme-surface .hover\:bg-\[\#111827\]:hover,
+.dark .theme-surface .hover\:bg-\[\#1f2937\]:hover { background-color: #ffffff; }
+.dark .theme-surface .bg-\[\#1f2937\].text-white,
+.dark .theme-surface .bg-\[\#1f2937\] .text-white { color: #111827; }
+.dark .theme-surface .border-\[\#1f2937\],
+.dark .theme-surface .focus\:border-\[\#1f2937\]:focus,
+.dark .theme-surface .focus-within\:border-\[\#1f2937\]:focus-within { border-color: #e5e7eb; }
+.dark .theme-surface .shadow-\[0_0_0_1px_\#1f2937\] { box-shadow: 0 0 0 1px #e5e7eb; }
+.dark .theme-surface .ring-\[\#1f2937\]\/10,
+.dark .theme-surface .focus\:ring-\[\#1f2937\]\/10:focus,
+.dark .theme-surface .focus-within\:ring-\[\#1f2937\]\/10:focus-within,
+.dark .theme-surface .focus\:ring-\[\#1f2937\]:focus { --tw-ring-color: rgb(255 255 255 / 0.08); }
+.dark .theme-surface .border-t-\[\#1f2937\] { border-top-color: #e5e7eb; }
+.dark .theme-surface .accent-\[\#1f2937\] { accent-color: #e5e7eb; }
 
 @layer utilities {
   .gradient-text {
@@ -35,6 +171,106 @@
 
   .animate-scaleIn {
     animation: scaleIn 0.4s ease-out;
+  }
+
+  /* "It's a match" photos sliding in from each side, and hearts drifting up */
+  .animate-matchLeft {
+    animation: matchLeft 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-matchRight {
+    animation: matchRight 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-floatUp {
+    animation: floatUp 5s ease-in infinite;
+  }
+  @keyframes matchLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-60px) rotate(-20deg);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) rotate(-8deg);
+    }
+  }
+  @keyframes matchRight {
+    from {
+      opacity: 0;
+      transform: translateX(60px) rotate(20deg);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) rotate(8deg);
+    }
+  }
+  @keyframes floatUp {
+    0% {
+      transform: translateY(0) scale(0.8);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-110vh) scale(1.2);
+      opacity: 0;
+    }
+  }
+
+  .animate-saveBar {
+    animation: saveBar 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+
+  @keyframes saveBar {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  .animate-pageFade {
+    animation: pageFade 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes pageFade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-pageIn {
+    animation: pageIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes pageIn {
+    from {
+      opacity: 0;
+      transform: translateX(32px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-sheetUp {
+    animation: sheetUp 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes sheetUp {
+    from {
+      opacity: 0.6;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes fadeIn {

@@ -1,10 +1,54 @@
 'use client';
 
+import { API_URL } from '@/lib/config';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, MapPin, Briefcase, Edit2, Camera, Heart, Film, LogOut, Home as HomeIcon, Zap, MessageCircle, Users, Sparkles, UserPlus, Smile, HeartHandshake, Globe, Coffee, PawPrint, Wine, Cigarette } from 'lucide-react';
+import { User, MapPin, Briefcase, Edit2, Camera, Heart, Film, LogOut, Home as HomeIcon, Zap, MessageCircle, Users, Sparkles, UserPlus, Smile, HeartHandshake, Globe, Coffee, PawPrint, Wine, Cigarette, Moon, GraduationCap, CalendarRange, Navigation, SlidersHorizontal, UserRound, ChevronRight, Check, Clapperboard, Lock } from 'lucide-react';
+import SelectMenu from '@/components/SelectMenu';
+import BirthdayInput from '@/components/BirthdayInput';
+import OptionSheet from '@/components/OptionSheet';
+import { ORIENTATION_OPTIONS, ORIENTATION_HELP } from '@/lib/identity';
+import BackButton from '@/components/BackButton';
+
+// Favorite genres are stored in the profile's `interests` field, which Discover shows as genre chips
+const MAX_GENRES = 4;
+const GENRES: [string, string][] = [
+  ['Drama', '🎭'], ['Romance', '💕'], ['Rom-Com', '💘'], ['Comedy', '😂'],
+  ['Thriller', '🔪'], ['Psychological', '🌀'], ['Horror', '👻'], ['Mystery', '🕵️'],
+  ['Crime', '🚔'], ['Film Noir', '🌫️'], ['Neo-Noir', '🌃'], ['Sci-Fi', '🚀'],
+  ['Fantasy', '🐉'], ['Action', '💥'], ['Adventure', '🗺️'], ['Western', '🤠'],
+  ['War', '🎖️'], ['Musical', '🎶'], ['Animation', '✏️'], ['Anime', '🌸'],
+  ['Documentary', '🎥'], ['Biopic', '📖'], ['Period Drama', '👒'], ['Coming-of-Age', '🎒'],
+  ['Arthouse', '🖼️'], ['Indie', '🎞️'], ['Foreign Films', '🌏'], ['Cult Classic', '📼'],
+  ['Superhero', '🦸'], ['Satire', '🃏'],
+];
+
+// Age for a complete, real YYYY-MM-DD birthday; null while it's incomplete or impossible
+const birthdayToAge = (birthday: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return null;
+  const [year, month, day] = birthday.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  const today = new Date();
+  const hadBirthdayThisYear = today.getMonth() > month - 1 || (today.getMonth() === month - 1 && today.getDate() >= day);
+  const age = today.getFullYear() - year - (hadBirthdayThisYear ? 0 : 1);
+  return age >= 0 ? age : null;
+};
+import { defaultAgeRange, MIN_DATING_AGE, MAX_PREFERRED_AGE } from '@/lib/utils';
+
+// Sign-up used to save 18-100 for everyone; treat that (or a missing range) as unset
+// and suggest one based on the person's age instead
+const ageRangeFor = (p: { age?: number; preferredAgeMin?: number; preferredAgeMax?: number }) => {
+  const unset = !p.preferredAgeMin || !p.preferredAgeMax || (p.preferredAgeMin === MIN_DATING_AGE && p.preferredAgeMax === 100);
+  if (unset && p.age) return defaultAgeRange(p.age);
+  return {
+    preferredAgeMin: Math.max(MIN_DATING_AGE, p.preferredAgeMin || MIN_DATING_AGE),
+    preferredAgeMax: Math.min(MAX_PREFERRED_AGE, p.preferredAgeMax || MAX_PREFERRED_AGE),
+  };
+};
 import { useTheme } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import LogoutDialog from '@/components/LogoutDialog';
 import { notificationService } from '@/lib/notifications';
 
 export default function HomePage() {
@@ -14,12 +58,15 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [likedYouCount, setLikedYouCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [editForm, setEditForm] = useState({
     name: '',
     age: 18,
+    birthday: '',
+    sexualOrientation: [] as string[],
     bio: '',
     location: '',
     gender: '',
@@ -72,7 +119,7 @@ export default function HomePage() {
         return;
       }
 
-      const response = await fetch('http://localhost:5001/api/profile', {
+      const response = await fetch(`${API_URL}/api/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -87,9 +134,11 @@ export default function HomePage() {
         setEditForm({
           name: data.name || '',
           age: data.age || 0,
+          birthday: data.birthday ? String(data.birthday).slice(0, 10) : '',
+          sexualOrientation: data.sexualOrientation || [],
           bio: data.bio || '',
           location: data.location || '',
-          gender: data.gender || '',
+          gender: ({ male: 'man', female: 'woman' } as Record<string, string>)[data.gender] ?? (data.gender || ''),
           zodiac: data.zodiac || '',
           education: data.education || '',
           pets: data.pets || '',
@@ -99,8 +148,7 @@ export default function HomePage() {
           topFilms: data.topFilms || [],
           relationshipGoals: data.relationshipGoals || [],
           preferredGender: data.preferredGender || [],
-          preferredAgeMin: data.preferredAgeMin || 18,
-          preferredAgeMax: data.preferredAgeMax || 50,
+          ...ageRangeFor(data),
           preferredDistance: data.preferredDistance || 50,
         });
         // Set profile picture preview from photos array
@@ -122,7 +170,7 @@ export default function HomePage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/likes/received', {
+      const response = await fetch(`${API_URL}/api/likes/received`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -142,7 +190,7 @@ export default function HomePage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/messages/unread/count', {
+      const response = await fetch(`${API_URL}/api/messages/unread/count`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -162,8 +210,9 @@ export default function HomePage() {
   };
 
   const confirmLogout = () => {
+    setShowLogoutModal(false);
     localStorage.removeItem('token');
-    router.push('/');
+    router.replace('/');
   };
 
   const toggleRelationshipGoal = (goal: string) => {
@@ -267,17 +316,19 @@ export default function HomePage() {
   };
 
   const handleSaveProfile = async () => {
+    if (saving) return;
+    setSaving(true);
     try {
       const token = localStorage.getItem('token');
       
       // Update profile data
-      const response = await fetch('http://localhost:5001/api/profile', {
+      const response = await fetch(`${API_URL}/api/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ ...editForm, age: undefined, birthday: editForm.birthday || undefined }),
       });
 
       if (response.ok) {
@@ -286,7 +337,7 @@ export default function HomePage() {
           const photoFormData = new FormData();
           photoFormData.append('photo', selectedProfilePic);
 
-          const photoResponse = await fetch('http://localhost:5001/api/profile/photo', {
+          const photoResponse = await fetch(`${API_URL}/api/profile/photo`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -302,9 +353,16 @@ export default function HomePage() {
         await fetchProfile();
         setIsEditing(false);
         setSelectedProfilePic(null);
+      } else {
+        // e.g. a birthday under 18 is refused by the server
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Could not save your profile. Please try again.');
       }
     } catch (error) {
       console.error('Error updating profile:', error);
+      alert('Could not save your profile. Please check your connection and try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -323,7 +381,7 @@ export default function HomePage() {
           <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-xl mb-4`}>Profile not found</p>
           <button 
             onClick={() => router.push('/login')}
-            className="px-6 py-2 bg-[#800020] text-white rounded-lg hover:bg-[#660019]"
+            className="px-6 py-2 bg-[#1f2937] text-white rounded-lg hover:bg-[#111827]"
           >
             Login
           </button>
@@ -335,40 +393,16 @@ export default function HomePage() {
   return (
     <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <header className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4 flex items-center justify-center relative`}>
+      <header className={`min-h-[72px] ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4 flex items-center justify-center relative`}>
         {/* Dark Mode Toggle */}
         <div className="absolute left-6">
           <ThemeToggle />
         </div>
 
-        <div className="flex items-center gap-3">
-          <img 
-            src="/images/mflogo.png" 
-            alt="MatchFlix Logo" 
-            className="w-10 h-10 object-contain"
-            style={{ filter: 'drop-shadow(0 0 1px white) drop-shadow(0 0 1px white)' }}
-          />
-          <h1 
-            className="text-3xl font-bold" 
-            style={{ 
-              fontFamily: '"Kavoon", serif', 
-              fontWeight: 400, 
-              fontStyle: 'normal',
-              background: 'linear-gradient(135deg, #800020 0%, #ff6b6b 50%, #800020 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.3)',
-              textShadow: '0 0 1px rgba(255, 255, 255, 0.2)'
-            }}
-          >
-            Matchflix
-          </h1>
-        </div>
 
         <button
           onClick={handleLogout}
-          className={`absolute right-6 flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-[#800020]' : 'text-gray-600 hover:text-[#800020]'} transition-colors`}
+          className={`absolute right-6 flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-[#1f2937]' : 'text-gray-600 hover:text-[#1f2937]'} transition-all duration-200 ease-out`}
         >
           <LogOut className="w-5 h-5" />
           <span className="text-sm font-medium">Logout</span>
@@ -376,19 +410,67 @@ export default function HomePage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-24 px-4 py-6">
-        <div className="max-w-2xl mx-auto">
-          {/* Profile Header Card */}
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg overflow-hidden mb-6`}>
-            {/* Profile Info */}
-            <div className="p-6">
-              <div className="flex items-start gap-4 mb-4">
-                {/* Circular Profile Picture */}
-                <div className="relative flex-shrink-0">
-                  <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-[#800020] to-[#660019] border-4 border-white shadow-lg">
-                    {profile.photos && profile.photos[0] ? (
-                      <img 
-                        src={profile.photos[0].startsWith('http') ? profile.photos[0] : `http://localhost:5001${profile.photos[0]}`}
+      <main className="flex-1 overflow-y-auto pb-28">
+        {(() => {
+          const t = isDarkMode
+            ? { title: 'text-gray-50', text: 'text-gray-200', muted: 'text-gray-400', heading: 'text-gray-400', chip: 'bg-gray-800 text-gray-200 ring-gray-700', soft: 'bg-gray-800', divider: 'divide-gray-800', border: 'border-gray-800', ring: 'ring-gray-900', track: 'bg-gray-800' }
+            : { title: 'text-gray-900', text: 'text-gray-800', muted: 'text-gray-500', heading: 'text-gray-500', chip: 'bg-white text-gray-800 ring-gray-200', soft: 'bg-gray-100', divider: 'divide-gray-200/70', border: 'border-gray-200/70', ring: 'ring-white', track: 'bg-gray-200' };
+
+          const photo = profile.photos?.[0]
+            ? profile.photos[0].startsWith('http') ? profile.photos[0] : `${API_URL}${profile.photos[0]}`
+            : null;
+
+          const basics = [
+            { value: profile.zodiac, icon: Moon },
+            { value: profile.education, icon: GraduationCap },
+            { value: profile.pets, icon: PawPrint },
+            { value: profile.drinkingHabits, icon: Wine },
+            { value: profile.smokingHabits, icon: Cigarette },
+          ].filter((item) => item.value);
+
+          // Rough profile strength, so people know what's still missing
+          const checks = [
+            { done: Boolean(photo), label: 'Add a photo' },
+            { done: Boolean(profile.bio), label: 'Write a bio' },
+            { done: profile.topFilms?.length >= 4, label: 'Pick 4 films' },
+            { done: basics.length > 0, label: 'Add your basics' },
+            { done: profile.relationshipGoals?.length > 0, label: 'Set a goal' },
+          ];
+          const strength = Math.round((checks.filter((c) => c.done).length / checks.length) * 100);
+          const nextStep = checks.find((c) => !c.done);
+
+          const preferences = [
+            profile.preferredGender?.length > 0 && {
+              label: 'Interested in',
+              value: profile.preferredGender.map((g: string) => g.charAt(0).toUpperCase() + g.slice(1)).join(', '),
+              icon: Heart,
+            },
+            profile.age && {
+              label: 'Age range',
+              value: (({ preferredAgeMin, preferredAgeMax }) => `${preferredAgeMin} – ${preferredAgeMax}${preferredAgeMax >= MAX_PREFERRED_AGE ? '+' : ''}`)(ageRangeFor(profile)),
+              icon: CalendarRange,
+            },
+            profile.preferredDistance && { label: 'Distance', value: `Within ${profile.preferredDistance} km`, icon: Navigation },
+          ].filter(Boolean) as { label: string; value: string; icon: typeof Heart }[];
+
+          const SectionTitle = ({ icon: Icon, children }: { icon: typeof Heart; children: React.ReactNode }) => (
+            <h3 className={`mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] ${t.heading}`}>
+              <Icon className="w-3.5 h-3.5" />
+              {children}
+            </h3>
+          );
+
+          const chip = `px-3.5 py-1.5 rounded-full text-sm font-medium ring-1 ring-inset ${t.chip}`;
+
+          return (
+            <div className="max-w-lg mx-auto px-6">
+              {/* Header */}
+              <section className="pt-8 pb-7 flex flex-col items-center text-center">
+                <div className="relative">
+                  <div className={`w-32 h-32 rounded-full overflow-hidden ring-4 ${t.ring} shadow-[0_12px_32px_-8px_rgba(0,0,0,0.35)] bg-[#1f2937]`}>
+                    {photo ? (
+                      <img
+                        src={photo}
                         alt={profile.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -397,242 +479,222 @@ export default function HomePage() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <User className="w-12 h-12 text-white/50" />
+                        <User className="w-14 h-14 text-white/50" />
                       </div>
                     )}
                   </div>
-                  <button className="absolute bottom-0 right-0 w-8 h-8 bg-[#800020] hover:bg-[#660019] rounded-full flex items-center justify-center transition-colors shadow-md">
-                    <Camera className="w-4 h-4 text-white" />
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    aria-label="Change photo"
+                    className={`absolute bottom-1 right-1 w-10 h-10 rounded-full bg-[#1f2937] hover:bg-[#111827] ring-4 ${t.ring} flex items-center justify-center transition-all duration-200 ease-out`}
+                  >
+                    <Camera className="w-[18px] h-[18px] text-white" />
                   </button>
                 </div>
 
-                {/* Name and Info */}
-                <div className="flex-1">
-                  <h2 className={`text-3xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>{profile.name}, {profile.age}</h2>
-                  <div className={`flex flex-wrap items-center gap-3 mt-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
-                    {profile.location && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        <span>{profile.location}</span>
-                      </div>
-                    )}
-                    {profile.gender && (
-                      <div className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        <span className="capitalize">{profile.gender}</span>
-                      </div>
-                    )}
-                  </div>
+                <h2 className={`mt-5 text-[32px] leading-none font-extrabold tracking-tight ${t.title}`}>
+                  {profile.name}
+                  <span className={`font-light ${t.muted}`}>, {profile.age}</span>
+                </h2>
+
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {profile.gender && (
+                    <span className={`inline-flex items-center gap-1.5 ${chip}`}>
+                      <User className={`w-4 h-4 ${t.muted}`} />
+                      <span className="capitalize">{profile.gender}</span>
+                    </span>
+                  )}
+                  {profile.location && (
+                    <span className={`inline-flex items-center gap-1.5 ${chip}`}>
+                      <MapPin className={`w-4 h-4 ${t.muted}`} />
+                      {profile.location}
+                    </span>
+                  )}
                 </div>
 
-                {/* Edit Button */}
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="px-4 py-2 bg-[#800020] text-white rounded-lg hover:bg-[#660019] transition-colors flex items-center gap-2 h-fit"
+                  onClick={() => setIsEditing(true)}
+                  className="mt-6 h-11 px-6 inline-flex items-center gap-2 rounded-full bg-[#1f2937] hover:bg-[#111827] text-white text-sm font-semibold transition-all duration-200 ease-out active:scale-[0.98]"
                 >
                   <Edit2 className="w-4 h-4" />
-                  <span>Edit</span>
+                  Edit profile
                 </button>
-              </div>
 
-              {/* Bio */}
-              {profile.bio && (
-                <div className="mb-6">
-                  <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 flex items-center gap-2`}>
-                    <User className="w-4 h-4" />
-                    About Me
-                  </h3>
-                  <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>{profile.bio}</p>
-                </div>
-              )}
-
-              {/* Basics Section */}
-              {(profile.zodiac || profile.education || profile.pets || profile.drinkingHabits || profile.smokingHabits) && (
-                <div className="mb-6">
-                  <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-3`}>Basics</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {profile.zodiac && (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full`}>
-                        <svg className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                        </svg>
-                        <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'} font-medium`}>{profile.zodiac}</span>
-                      </div>
-                    )}
-                    {profile.education && (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full`}>
-                        <svg className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
-                        </svg>
-                        <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'} font-medium`}>{profile.education}</span>
-                      </div>
-                    )}
-                    {profile.pets && (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full`}>
-                        <PawPrint className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} />
-                        <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'} font-medium`}>{profile.pets}</span>
-                      </div>
-                    )}
-                    {profile.drinkingHabits && (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full`}>
-                        <Wine className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} />
-                        <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'} font-medium`}>{profile.drinkingHabits}</span>
-                      </div>
-                    )}
-                    {profile.smokingHabits && (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full`}>
-                        <Cigarette className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} />
-                        <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-800'} font-medium`}>{profile.smokingHabits}</span>
-                      </div>
-                    )}
+                {/* Profile strength */}
+                <div className="mt-7 w-full max-w-xs">
+                  <div className="flex items-center justify-between text-xs font-medium">
+                    <span className={t.muted}>Profile strength</span>
+                    <span className={t.title}>{strength}%</span>
                   </div>
-                </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* Interests Section */}
-          {profile.interests && profile.interests.length > 0 && (
-            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg p-6 mb-6`}>
-              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4 flex items-center gap-2`}>
-                <Heart className={`w-5 h-5 ${isDarkMode ? 'text-pink-400' : 'text-[#800020]'}`} />
-                My Interests
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {profile.interests.map((interest: string, index: number) => (
-                  <span 
-                    key={index}
-                    className={`px-4 py-2 ${isDarkMode ? 'bg-pink-400/20 text-pink-300 border-pink-400/30' : 'bg-[#800020]/10 text-[#800020] border-[#800020]/20'} rounded-full text-sm font-medium border`}
-                  >
-                    {interest}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Relationship Goals Section */}
-          {profile.relationshipGoals && profile.relationshipGoals.length > 0 && (
-            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg p-6 mb-6`}>
-              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4 flex items-center gap-2`}>
-                <HeartHandshake className={`w-5 h-5 ${isDarkMode ? 'text-pink-400' : 'text-[#800020]'}`} />
-                Relationship Goals
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {profile.relationshipGoals.map((goal: string, index: number) => (
-                  <span 
-                    key={index}
-                    className={`px-4 py-2 ${isDarkMode ? 'bg-pink-400/20 text-pink-300 border-pink-400/30' : 'bg-[#800020]/10 text-[#800020] border-[#800020]/20'} rounded-full text-sm font-medium border`}
-                  >
-                    {goal}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Top Films Section */}
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg p-6 mb-6`}>
-            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4 flex items-center gap-2`}>
-              <Film className={`w-5 h-5 ${isDarkMode ? 'text-pink-400' : 'text-[#800020]'}`} />
-              My Top Films
-            </h3>
-            {profile.topFilms && profile.topFilms.length > 0 ? (
-              <div className="grid grid-cols-4 gap-3">
-                {profile.topFilms.map((filmUrl: string, index: number) => (
-                  <div key={index} className="aspect-[2/3] rounded-lg overflow-hidden shadow-md">
-                    <img 
-                      src={filmUrl} 
-                      alt={`Top film ${index + 1}`}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                    />
+                  <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${t.track}`}>
+                    <div className={`h-full rounded-full transition-all duration-500 ${isDarkMode ? "bg-gray-200" : "bg-[#1f2937]"}`} style={{ width: `${strength}%` }} />
                   </div>
-                ))}
+                  {nextStep && (
+                    <button onClick={() => setIsEditing(true)} className={`mt-2 text-xs font-medium underline-offset-2 hover:underline ${t.muted}`}>
+                      Next: {nextStep.label} →
+                    </button>
+                  )}
+                </div>
+              </section>
+
+              <div className={`border-t ${t.border}`} />
+
+              <div className="py-8 space-y-9">
+                {/* Top films */}
+                <section>
+                  <SectionTitle icon={Film}>My top 4 films</SectionTitle>
+                  {profile.topFilms && profile.topFilms.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2.5">
+                      {profile.topFilms.slice(0, 4).map((filmUrl: string, index: number) => (
+                        <div key={index} className="group relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-200 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.4)]">
+                          <img
+                            src={filmUrl}
+                            alt={`Top film ${index + 1}`}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                          <span className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-white/90 text-gray-900 text-[10px] font-bold flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className={`w-full py-8 rounded-2xl border-2 border-dashed ${t.border} flex flex-col items-center gap-2 ${t.muted} hover:opacity-80 transition-opacity`}
+                    >
+                      <Film className="w-8 h-8 opacity-60" />
+                      <span className="text-sm font-medium">Add your favorite films</span>
+                    </button>
+                  )}
+                </section>
+
+                {/* Genres */}
+                {profile.interests?.length > 0 && (
+                  <section>
+                    <SectionTitle icon={Clapperboard}>Top genres</SectionTitle>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.interests.slice(0, MAX_GENRES).map((genre: string, index: number) => (
+                        <span key={genre} className={`inline-flex items-center gap-1.5 ${chip}`}>
+                          <span className={`text-[11px] font-bold ${t.muted}`}>{index + 1}</span>
+                          {genre}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* About */}
+                <section>
+                  <SectionTitle icon={User}>About me</SectionTitle>
+                  {profile.bio ? (
+                    <p className={`text-[15px] leading-relaxed ${t.text}`}>{profile.bio}</p>
+                  ) : (
+                    <button onClick={() => setIsEditing(true)} className={`text-[15px] italic ${t.muted} hover:underline`}>
+                      Write something about yourself…
+                    </button>
+                  )}
+                </section>
+
+                {/* Basics */}
+                {basics.length > 0 && (
+                  <section>
+                    <SectionTitle icon={Sparkles}>Basics</SectionTitle>
+                    <div className="flex flex-wrap gap-2">
+                      {basics.map(({ value, icon: Icon }) => (
+                        <span key={value} className={`inline-flex items-center gap-1.5 ${chip}`}>
+                          <Icon className={`w-4 h-4 ${t.muted}`} />
+                          {value}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Relationship goals */}
+                {profile.relationshipGoals && profile.relationshipGoals.length > 0 && (
+                  <section>
+                    <SectionTitle icon={HeartHandshake}>Here for</SectionTitle>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.relationshipGoals.map((goal: string, index: number) => (
+                        <span key={index} className={`inline-flex items-center gap-1.5 ${chip}`}>
+                          {goal === 'Friendship' ? <Users className={`w-4 h-4 ${t.muted}`} /> : <Heart className={`w-4 h-4 ${t.muted}`} />}
+                          {goal}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Preferences */}
+                {preferences.length > 0 && (
+                  <section>
+                    <SectionTitle icon={SlidersHorizontal}>My preferences</SectionTitle>
+                    <div className={`rounded-2xl overflow-hidden divide-y ${t.divider} ${t.soft}`}>
+                      {preferences.map(({ label, value, icon: Icon }) => (
+                        <div key={label} className="flex items-center gap-3 px-4 py-3.5">
+                          <Icon className={`w-5 h-5 flex-shrink-0 ${t.muted}`} />
+                          <span className={`text-sm ${t.muted}`}>{label}</span>
+                          <span className={`ml-auto text-sm font-semibold text-right ${t.text}`}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </div>
-            ) : (
-              <div className="text-center py-8 text-gray-400">
-                <Film className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No films selected yet</p>
-                <p className="text-sm mt-1">Click Edit to add your favorite films</p>
+            </div>
+          );
+        })()}
+      </main>
+
+      {/* Edit Profile Page */}
+      {isEditing && (
+        <div className="theme-surface fixed inset-0 z-50 bg-white overflow-y-auto overscroll-contain animate-pageIn">
+          {/* Saving indicator, centered over the page */}
+          <div
+            aria-live="polite"
+            className={`fixed inset-0 z-40 flex items-center justify-center bg-white/60 backdrop-blur-[2px] transition-opacity duration-200 ${
+              saving ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            {saving && (
+              <div className="flex flex-col items-center gap-3 animate-fadeIn">
+                <span className="w-9 h-9 rounded-full border-[3px] border-gray-200 border-t-[#1f2937] animate-spin" />
+                <span className="text-sm font-medium text-gray-600">Saving…</span>
               </div>
             )}
           </div>
 
-          {/* Preferences Section */}
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg p-6 mb-6`}>
-            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4 flex items-center gap-2`}>
-              <svg className={`w-5 h-5 ${isDarkMode ? 'text-pink-400' : 'text-[#800020]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-              </svg>
-              My Preferences
-            </h3>
-            <div className="space-y-4">
-              {profile.preferredGender && profile.preferredGender.length > 0 && (
+          <div className="min-h-full flex flex-col">
+            <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-gray-100">
+              <div className="max-w-2xl mx-auto h-16 px-4 grid grid-cols-[1fr_auto_1fr] items-center">
                 <div>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>Looking for</p>
-                  <div className="flex flex-wrap gap-2">
-                    {profile.preferredGender.map((gender: string, index: number) => (
-                      <span 
-                        key={index}
-                        className={`px-3 py-1 ${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'} rounded-full text-sm font-medium`}
-                      >
-                        {gender.charAt(0).toUpperCase() + gender.slice(1)}
-                      </span>
-                    ))}
-                  </div>
+                  <BackButton onClick={() => setIsEditing(false)} disabled={saving} label="Back" isDarkMode={isDarkMode} />
                 </div>
-              )}
-              {(profile.preferredAgeMin || profile.preferredAgeMax) && (
-                <div>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>Age Range</p>
-                  <p className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                    {profile.preferredAgeMin || 18} - {profile.preferredAgeMax || 50} years old
-                  </p>
+                <h2 className="text-base font-bold text-gray-900">Edit profile</h2>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={saving}
+                    aria-busy={saving}
+                    className="h-10 min-w-[76px] px-5 rounded-full bg-[#1f2937] hover:bg-[#111827] disabled:hover:bg-[#1f2937] text-white text-sm font-semibold inline-flex items-center justify-center"
+                  >
+                    Save
+                  </button>
                 </div>
-              )}
-              {profile.preferredDistance && (
-                <div>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>Distance</p>
-                  <p className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                    Within {profile.preferredDistance} km
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </header>
 
-        </div>
-      </main>
-
-      {/* Edit Profile Modal */}
-      {isEditing && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">Edit Profile</h2>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
+            <div className={`flex-1 w-full max-w-2xl mx-auto px-6 pt-6 pb-4 space-y-8 transition-opacity duration-200 ${saving ? 'opacity-60 pointer-events-none' : ''}`}>
               {/* Profile Picture */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">Profile Picture</label>
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-[#800020] to-[#660019] border-4 border-gray-200">
+                    <div className="w-24 h-24 rounded-full overflow-hidden bg-[#1f2937] border-4 border-gray-200">
                       {profilePicPreview || (profile.photos && profile.photos[0]) ? (
                         <img 
-                          src={profilePicPreview || (profile.photos[0].startsWith('http') ? profile.photos[0] : `http://localhost:5001${profile.photos[0]}`)}
+                          src={profilePicPreview || (profile.photos[0].startsWith('http') ? profile.photos[0] : `${API_URL}${profile.photos[0]}`)}
                           alt="Profile preview"
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -656,7 +718,7 @@ export default function HomePage() {
                     />
                     <label
                       htmlFor="profilePicInput"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#800020] text-white rounded-lg hover:bg-[#660019] transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#1f2937] text-white rounded-lg hover:bg-[#111827] transition-all duration-200 ease-out cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
                       <span>Change Photo</span>
@@ -673,39 +735,77 @@ export default function HomePage() {
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800020] focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent"
                 />
               </div>
 
-              {/* Age */}
+              {/* Birthday (age follows from it) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
-                <input
-                  type="number"
-                  value={editForm.age}
-                  onChange={(e) => setEditForm({ ...editForm, age: parseInt(e.target.value) })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800020] focus:border-transparent"
+                <label className="block text-sm font-medium text-gray-700 mb-3">Birthday</label>
+                <BirthdayInput
+                  value={editForm.birthday}
+                  onChange={(birthday) => {
+                    const age = birthdayToAge(birthday);
+                    setEditForm({ ...editForm, birthday, ...(age !== null ? { age } : {}) });
+                  }}
+                  hint={
+                    birthdayToAge(editForm.birthday) !== null
+                      ? <>You're <span className="font-semibold text-gray-800">{birthdayToAge(editForm.birthday)}</span> · age updates from your birthday</>
+                      : editForm.birthday === '' && editForm.age
+                        ? <>Your age is <span className="font-semibold text-gray-800">{editForm.age}</span>. Add your birthday to change it.</>
+                        : 'Enter your date of birth'
+                  }
                 />
               </div>
 
               {/* Gender Identity */}
+              <SelectMenu
+                label="Gender identity"
+                icon={UserRound}
+                placeholder="Select your gender"
+                value={editForm.gender}
+                onChange={(gender) => setEditForm({ ...editForm, gender })}
+                options={[
+                  { value: 'man', label: 'Man' },
+                  { value: 'woman', label: 'Woman' },
+                  { value: 'non-binary', label: 'Non-binary' },
+                  { value: 'transgender', label: 'Transgender' },
+                  { value: 'genderqueer', label: 'Genderqueer' },
+                  { value: 'genderfluid', label: 'Genderfluid' },
+                  { value: 'agender', label: 'Agender' },
+                  { value: 'other', label: 'Other' },
+                  { value: 'prefer-not-to-say', label: 'Prefer not to say' },
+                ]}
+              />
+
+              {/* Sexual orientation (private) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">How do you identify?</label>
-                <select
-                  value={editForm.gender}
-                  onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800020] focus:border-transparent bg-white"
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="non-binary">Non-Binary</option>
-                  <option value="transgender">Transgender</option>
-                  <option value="genderfluid">Genderfluid</option>
-                  <option value="agender">Agender</option>
-                  <option value="other">Other</option>
-                  <option value="prefer-not-to-say">Prefer not to say</option>
-                </select>
+                <span className="block text-sm font-medium text-gray-700 mb-2">Sexual orientation</span>
+                <div className="flex flex-wrap gap-2">
+                  {ORIENTATION_OPTIONS.map(({ value, label }) => {
+                    const selected = editForm.sexualOrientation[0] === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setEditForm((current) => ({ ...current, sexualOrientation: [value] }))}
+                        className={`h-10 px-4 rounded-full border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
+                          selected
+                            ? 'bg-[#1f2937] border-[#1f2937] text-white'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 flex items-start gap-1.5 text-xs text-gray-500">
+                  <Lock className="w-3.5 h-3.5 mt-px flex-shrink-0" />
+                  {ORIENTATION_HELP}
+                </p>
               </div>
 
               {/* Location */}
@@ -716,14 +816,14 @@ export default function HomePage() {
                     type="text"
                     value={editForm.location}
                     onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800020] focus:border-transparent"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent"
                     placeholder="City, Country"
                   />
                   <button
                     type="button"
                     onClick={handleGetLocation}
                     disabled={gettingLocation}
-                    className="px-4 py-3 bg-[#800020] text-white rounded-lg hover:bg-[#660019] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-3 bg-[#1f2937] text-white rounded-lg hover:bg-[#111827] transition-all duration-200 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {gettingLocation ? (
                       <>
@@ -747,123 +847,31 @@ export default function HomePage() {
 
               {/* Basics Section */}
               <div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Basics</h3>
-                <div className="space-y-0 border border-gray-200 rounded-2xl overflow-hidden">
-                  {/* Zodiac */}
-                  <button
-                    type="button"
-                    onClick={() => setShowZodiacModal(true)}
-                    className="relative border-b border-gray-200 last:border-b-0 w-full"
-                  >
-                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                        </svg>
-                        <span className="text-lg font-medium text-gray-800">Zodiac</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-base ${editForm.zodiac ? 'text-gray-800' : 'text-gray-400'}`}>
-                          {editForm.zodiac || 'Select'}
-                        </span>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Education */}
-                  <button
-                    type="button"
-                    onClick={() => setShowEducationModal(true)}
-                    className="relative border-b border-gray-200 last:border-b-0 w-full"
-                  >
-                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
-                        </svg>
-                        <span className="text-lg font-medium text-gray-800">Education</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-base ${editForm.education ? 'text-gray-800' : 'text-gray-400'}`}>
-                          {editForm.education || 'Select'}
-                        </span>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Pets */}
-                  <button
-                    type="button"
-                    onClick={() => setShowPetsModal(true)}
-                    className="relative border-b border-gray-200 last:border-b-0 w-full"
-                  >
-                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <PawPrint className="w-6 h-6 text-gray-700" />
-                        <span className="text-lg font-medium text-gray-800">Pets</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-base ${editForm.pets ? 'text-gray-800' : 'text-gray-400'}`}>
-                          {editForm.pets || 'Select'}
-                        </span>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Drinking Habits */}
-                  <button
-                    type="button"
-                    onClick={() => setShowDrinkingModal(true)}
-                    className="relative border-b border-gray-200 last:border-b-0 w-full"
-                  >
-                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Wine className="w-6 h-6 text-gray-700" />
-                        <span className="text-lg font-medium text-gray-800">Drinking Habits</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-base ${editForm.drinkingHabits ? 'text-gray-800' : 'text-gray-400'}`}>
-                          {editForm.drinkingHabits || 'Select'}
-                        </span>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Smoking Habits */}
-                  <button
-                    type="button"
-                    onClick={() => setShowSmokingModal(true)}
-                    className="relative border-b border-gray-200 last:border-b-0 w-full"
-                  >
-                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Cigarette className="w-6 h-6 text-gray-700" />
-                        <span className="text-lg font-medium text-gray-800">Smoking Habits</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-base ${editForm.smokingHabits ? 'text-gray-800' : 'text-gray-400'}`}>
-                          {editForm.smokingHabits || 'Select'}
-                        </span>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-2.5">Basics</h3>
+                <div className="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                  {[
+                    { label: 'Zodiac', value: editForm.zodiac, icon: Moon, open: () => setShowZodiacModal(true) },
+                    { label: 'Education', value: editForm.education, icon: GraduationCap, open: () => setShowEducationModal(true) },
+                    { label: 'Pets', value: editForm.pets, icon: PawPrint, open: () => setShowPetsModal(true) },
+                    { label: 'Drinking', value: editForm.drinkingHabits, icon: Wine, open: () => setShowDrinkingModal(true) },
+                    { label: 'Smoking', value: editForm.smokingHabits, icon: Cigarette, open: () => setShowSmokingModal(true) },
+                  ].map(({ label, value, icon: Icon, open }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={open}
+                      className="group w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50"
+                    >
+                      <span className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center flex-shrink-0 transition-colors">
+                        <Icon className="w-4 h-4 text-gray-600" />
+                      </span>
+                      <span className="text-sm font-medium text-gray-800">{label}</span>
+                      <span className={`ml-auto text-sm truncate max-w-[50%] text-right ${value ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                        {value || 'Add'}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -874,7 +882,7 @@ export default function HomePage() {
                   value={editForm.bio}
                   onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                   rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800020] focus:border-transparent resize-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent resize-none"
                   placeholder="Tell us about yourself..."
                 />
               </div>
@@ -911,193 +919,13 @@ export default function HomePage() {
                   <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg">
                     <Film className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">No films selected yet</p>
-                    <p className="text-xs mt-1">Films are set during registration</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Distance Range */}
-              <div className="bg-white p-4 rounded-2xl border border-gray-200">
-                <div className="flex justify-between items-center mb-4">
-                  <label className="text-base font-semibold text-gray-800">Distance Range</label>
-                  <span className="text-base font-semibold text-[#800020]">{editForm.preferredDistance} km</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="200"
-                  value={editForm.preferredDistance}
-                  onChange={(e) => setEditForm({ ...editForm, preferredDistance: parseInt(e.target.value) })}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#800020]"
-                  style={{
-                    background: `linear-gradient(to right, #800020 0%, #800020 ${(editForm.preferredDistance / 200) * 100}%, #e5e7eb ${(editForm.preferredDistance / 200) * 100}%, #e5e7eb 100%)`
-                  }}
-                />
-              </div>
-
-              {/* Age Range */}
-              <div className="bg-white p-4 rounded-2xl border border-gray-200">
-                <div className="flex justify-between items-center mb-4">
-                  <label className="text-base font-semibold text-gray-800">Age Range</label>
-                  <span className="text-base font-semibold text-[#800020]">{editForm.preferredAgeMin} - {editForm.preferredAgeMax}</span>
-                </div>
-                <div className="relative h-8 flex items-center">
-                  {/* Track background */}
-                  <div className="absolute w-full h-2 bg-gray-200 rounded-lg pointer-events-none"></div>
-                  {/* Active track */}
-                  <div 
-                    className="absolute h-2 bg-[#800020] rounded-lg pointer-events-none"
-                    style={{
-                      left: `${((editForm.preferredAgeMin - 18) / 32) * 100}%`,
-                      right: `${100 - ((editForm.preferredAgeMax - 18) / 32) * 100}%`
-                    }}
-                  ></div>
-                  {/* Min slider */}
-                  <input
-                    type="range"
-                    min="18"
-                    max="50"
-                    value={editForm.preferredAgeMin}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      if (val < editForm.preferredAgeMax) {
-                        setEditForm({ ...editForm, preferredAgeMin: val });
-                      }
-                    }}
-                    className="absolute w-full appearance-none bg-transparent cursor-pointer range-slider-min"
-                    style={{ zIndex: 3 }}
-                  />
-                  {/* Max slider */}
-                  <input
-                    type="range"
-                    min="18"
-                    max="50"
-                    value={editForm.preferredAgeMax}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      if (val > editForm.preferredAgeMin) {
-                        setEditForm({ ...editForm, preferredAgeMax: val });
-                      }
-                    }}
-                    className="absolute w-full appearance-none bg-transparent cursor-pointer range-slider-max"
-                    style={{ zIndex: 4 }}
-                  />
-                </div>
-                <style jsx>{`
-                  input[type="range"] {
-                    pointer-events: none;
-                  }
-                  input[type="range"]::-webkit-slider-thumb {
-                    appearance: none;
-                    width: 20px;
-                    height: 20px;
-                    border-radius: 50%;
-                    background: #800020;
-                    cursor: pointer;
-                    border: 3px solid white;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    pointer-events: auto;
-                    position: relative;
-                  }
-                  input[type="range"]::-moz-range-thumb {
-                    width: 20px;
-                    height: 20px;
-                    border-radius: 50%;
-                    background: #800020;
-                    cursor: pointer;
-                    border: 3px solid white;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    pointer-events: auto;
-                  }
-                  input[type="range"]::-webkit-slider-runnable-track {
-                    height: 0;
-                  }
-                  input[type="range"]::-moz-range-track {
-                    height: 0;
-                  }
-                `}</style>
-              </div>
-
-              {/* Relationship Goals */}
-              <div>
-                <label className="block text-xl font-bold text-gray-800 mb-3">Relationship Goals</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => toggleRelationshipGoal('Dating')}
-                    className={`py-2.5 px-4 rounded-full font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-                      editForm.relationshipGoals.includes('Dating')
-                        ? 'bg-[#800020] text-white shadow-lg scale-105'
-                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-[#800020]'
-                    }`}
-                  >
-                    <Heart className="w-4 h-4" />
-                    Dating
-                  </button>
-                  <button
-                    onClick={() => toggleRelationshipGoal('Friendship')}
-                    className={`py-2.5 px-4 rounded-full font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-                      editForm.relationshipGoals.includes('Friendship')
-                        ? 'bg-[#800020] text-white shadow-lg scale-105'
-                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-[#800020]'
-                    }`}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Friendship
-                  </button>
-                  <button
-                    onClick={() => toggleRelationshipGoal('Casual')}
-                    className={`py-2.5 px-4 rounded-full font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-                      editForm.relationshipGoals.includes('Casual')
-                        ? 'bg-[#800020] text-white shadow-lg scale-105'
-                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-[#800020]'
-                    }`}
-                  >
-                    <Smile className="w-4 h-4" />
-                    Casual
-                  </button>
-                  <button
-                    onClick={() => toggleRelationshipGoal('Serious Relationship')}
-                    className={`py-2.5 px-4 rounded-full font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-                      editForm.relationshipGoals.includes('Serious Relationship')
-                        ? 'bg-[#800020] text-white shadow-lg scale-105'
-                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-[#800020]'
-                    }`}
-                  >
-                    <HeartHandshake className="w-4 h-4" />
-                    Serious
-                  </button>
-                </div>
-              </div>
-
-              {/* Top Films */}
-              <div>
-                <label className="block text-xl font-bold text-gray-800 mb-3">Top 4 Films</label>
-                
-                {/* Selected Films */}
-                {editForm.topFilms.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2 mb-4">
-                    {editForm.topFilms.map((filmUrl: string, index: number) => (
-                      <div key={index} className="aspect-[2/3] rounded-lg overflow-hidden shadow-md border-2 border-gray-200 relative group">
-                        <img 
-                          src={filmUrl} 
-                          alt={`Top film ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeFilm(index)}
-                          className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm font-bold"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
+                    <p className="text-xs mt-1">Search below to add your favorite films</p>
                   </div>
                 )}
 
                 {/* Film Search */}
                 {editForm.topFilms.length < 4 && (
-                  <div className="relative">
+                  <div className="relative mt-3">
                     <input
                       type="text"
                       value={filmSearch}
@@ -1106,7 +934,7 @@ export default function HomePage() {
                         searchFilms(e.target.value);
                       }}
                       placeholder="Search for films to add..."
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800020] focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent"
                     />
                     
                     {/* Search Results */}
@@ -1117,7 +945,7 @@ export default function HomePage() {
                             key={film.id}
                             type="button"
                             onClick={() => addFilm(film)}
-                            className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+                            className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 transition-all duration-200 ease-out text-left"
                           >
                             {film.poster_path ? (
                               <img
@@ -1141,7 +969,7 @@ export default function HomePage() {
                     
                     {searchingFilms && (
                       <div className="absolute right-3 top-3">
-                        <svg className="animate-spin h-5 w-5 text-[#800020]" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-5 w-5 text-[#1f2937]" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
@@ -1155,19 +983,254 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* Save Button */}
-              <div className="flex gap-3 pt-4">
+              {/* Top 4 Genres */}
+              <div>
+                <div className="flex items-baseline justify-between mb-2.5">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Top 4 genres</h3>
+                  <span className="text-xs text-gray-400">
+                    <span className="font-semibold text-gray-700">{editForm.interests.length}</span>/{MAX_GENRES} chosen
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ...GENRES,
+                    ...editForm.interests
+                      .filter((g) => !GENRES.some(([name]) => name === g))
+                      .map((g): [string, string] => [g, '🎬']),
+                  ].map(([genre, emoji]) => {
+                    const rank = editForm.interests.indexOf(genre);
+                    const selected = rank !== -1;
+                    const full = editForm.interests.length >= MAX_GENRES;
+                    return (
+                      <button
+                        key={genre}
+                        type="button"
+                        aria-pressed={selected}
+                        disabled={!selected && full}
+                        onClick={() =>
+                          setEditForm((current) => ({
+                            ...current,
+                            interests: selected
+                              ? current.interests.filter((g) => g !== genre)
+                              : [...current.interests, genre].slice(0, MAX_GENRES),
+                          }))
+                        }
+                        className={`inline-flex items-center gap-1.5 h-10 pl-3 pr-3.5 rounded-full border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
+                          selected
+                            ? 'bg-[#1f2937] border-[#1f2937] text-white'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {selected ? (
+                          <span className="w-5 h-5 rounded-full bg-white text-[#1f2937] text-[11px] font-bold flex items-center justify-center">
+                            {rank + 1}
+                          </span>
+                        ) : (
+                          <span className="text-base leading-none">{emoji}</span>
+                        )}
+                        {genre}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-gray-400">
+                  {editForm.interests.length >= MAX_GENRES
+                    ? 'Tap a chosen genre to swap it out'
+                    : 'Tap in order of how much you love them'}
+                </p>
+              </div>
+
+              {/* Distance Range */}
+              <div className="bg-white p-4 rounded-2xl border border-gray-200">
+                <div className="flex justify-between items-center mb-4">
+                  <label className="text-base font-semibold text-gray-800">Distance Range</label>
+                  <span className="text-base font-semibold text-[#1f2937]">{editForm.preferredDistance} km</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="200"
+                  value={editForm.preferredDistance}
+                  onChange={(e) => setEditForm({ ...editForm, preferredDistance: parseInt(e.target.value) })}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1f2937]"
+                  style={{
+                    background: `linear-gradient(to right, #1f2937 0%, #1f2937 ${(editForm.preferredDistance / 200) * 100}%, #e5e7eb ${(editForm.preferredDistance / 200) * 100}%, #e5e7eb 100%)`
+                  }}
+                />
+              </div>
+
+              {/* Age Range */}
+              <div className="bg-white p-4 rounded-2xl border border-gray-200">
+                <div className="flex justify-between items-center mb-4">
+                  <label className="text-base font-semibold text-gray-800">Age Range</label>
+                  <span className="text-base font-semibold text-[#1f2937]">
+                    {editForm.preferredAgeMin} – {editForm.preferredAgeMax}{editForm.preferredAgeMax >= MAX_PREFERRED_AGE ? '+' : ''}
+                  </span>
+                </div>
+                {editForm.age > 0 && (() => {
+                  const suggested = defaultAgeRange(editForm.age);
+                  const isSuggested = suggested.preferredAgeMin === editForm.preferredAgeMin && suggested.preferredAgeMax === editForm.preferredAgeMax;
+                  return (
+                    <p className="-mt-2 mb-3 text-xs text-gray-500">
+                      Suggested for age {editForm.age}: {suggested.preferredAgeMin} – {suggested.preferredAgeMax}
+                      {!isSuggested && (
+                        <button
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, ...suggested })}
+                          className="ml-2 font-semibold text-[#1f2937] underline-offset-2 hover:underline"
+                        >
+                          Use this
+                        </button>
+                      )}
+                    </p>
+                  );
+                })()}
+                <div className="relative h-8 flex items-center">
+                  {/* Track background */}
+                  <div className="absolute w-full h-2 bg-gray-200 rounded-lg pointer-events-none"></div>
+                  {/* Active track */}
+                  <div 
+                    className="absolute h-2 bg-[#1f2937] rounded-lg pointer-events-none"
+                    style={{
+                      left: `${((editForm.preferredAgeMin - MIN_DATING_AGE) / (MAX_PREFERRED_AGE - MIN_DATING_AGE)) * 100}%`,
+                      right: `${100 - ((editForm.preferredAgeMax - MIN_DATING_AGE) / (MAX_PREFERRED_AGE - MIN_DATING_AGE)) * 100}%`
+                    }}
+                  ></div>
+                  {/* Min slider */}
+                  <input
+                    type="range"
+                    min={MIN_DATING_AGE}
+                    max={MAX_PREFERRED_AGE}
+                    value={editForm.preferredAgeMin}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (val < editForm.preferredAgeMax) {
+                        setEditForm({ ...editForm, preferredAgeMin: val });
+                      }
+                    }}
+                    className="absolute w-full appearance-none bg-transparent cursor-pointer range-slider-min"
+                    style={{ zIndex: 3 }}
+                  />
+                  {/* Max slider */}
+                  <input
+                    type="range"
+                    min={MIN_DATING_AGE}
+                    max={MAX_PREFERRED_AGE}
+                    value={editForm.preferredAgeMax}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (val > editForm.preferredAgeMin) {
+                        setEditForm({ ...editForm, preferredAgeMax: val });
+                      }
+                    }}
+                    className="absolute w-full appearance-none bg-transparent cursor-pointer range-slider-max"
+                    style={{ zIndex: 4 }}
+                  />
+                </div>
+                <style jsx>{`
+                  input[type="range"] {
+                    pointer-events: none;
+                  }
+                  input[type="range"]::-webkit-slider-thumb {
+                    appearance: none;
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    background: #1f2937;
+                    cursor: pointer;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                    pointer-events: auto;
+                    position: relative;
+                  }
+                  input[type="range"]::-moz-range-thumb {
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    background: #1f2937;
+                    cursor: pointer;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                    pointer-events: auto;
+                  }
+                  input[type="range"]::-webkit-slider-runnable-track {
+                    height: 0;
+                  }
+                  input[type="range"]::-moz-range-track {
+                    height: 0;
+                  }
+                `}</style>
+              </div>
+
+              {/* Relationship Goals */}
+              <div>
+                <div className="flex items-baseline justify-between mb-2.5">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Here for</h3>
+                  <span className="text-xs text-gray-400">Pick all that apply</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { value: 'Dating', label: 'Dating', description: 'Find someone to fall for', icon: Heart },
+                    { value: 'Friendship', label: 'Friendship', description: 'A film buddy to watch with', icon: UserPlus },
+                    { value: 'Casual', label: 'Casual', description: 'Keep it light, see where it goes', icon: Smile },
+                    { value: 'Serious Relationship', label: 'Serious', description: 'Looking for something long-term', icon: HeartHandshake },
+                  ].map(({ value, label, description, icon: Icon }) => {
+                    const selected = editForm.relationshipGoals.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => toggleRelationshipGoal(value)}
+                        aria-pressed={selected}
+                        className={`group relative flex flex-col items-start gap-3 p-4 rounded-2xl border text-left ${
+                          selected
+                            ? 'border-[#1f2937] bg-gray-50 shadow-[0_0_0_1px_#1f2937]'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60'
+                        }`}
+                      >
+                        <span
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 ${
+                            selected ? 'bg-[#1f2937] text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-900">{label}</span>
+                          <span className="block mt-0.5 text-xs leading-snug text-gray-500">{description}</span>
+                        </span>
+                        <span
+                          className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                            selected ? 'border-[#1f2937] bg-[#1f2937]' : 'border-gray-300'
+                          }`}
+                        >
+                          {selected && <Check className="w-3 h-3 text-white" strokeWidth={3.5} />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Save bar */}
+            <div className="sticky bottom-0 z-20 bg-white/90 backdrop-blur-lg border-t border-gray-100">
+              <div className="max-w-2xl mx-auto px-6 py-4 flex gap-3">
                 <button
                   onClick={() => setIsEditing(false)}
-                  className="flex-1 py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  disabled={saving}
+                  className="flex-1 h-12 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveProfile}
-                  className="flex-1 py-3 px-6 bg-[#800020] text-white rounded-lg hover:bg-[#660019] transition-colors font-medium"
+                  disabled={saving}
+                  aria-busy={saving}
+                  className="flex-[2] h-12 rounded-full bg-[#1f2937] hover:bg-[#111827] disabled:hover:bg-[#1f2937] text-white font-semibold inline-flex items-center justify-center gap-2.5"
                 >
-                  Save Changes
+                  Save changes
                 </button>
               </div>
             </div>
@@ -1175,217 +1238,70 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Zodiac Selection Modal */}
-      {showZodiacModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Select Zodiac Sign</h3>
-            </div>
-            <div className="overflow-y-auto max-h-[60vh]">
-              {['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'].map((sign) => (
-                <button
-                  key={sign}
-                  onClick={() => {
-                    setEditForm({ ...editForm, zodiac: sign });
-                    setShowZodiacModal(false);
-                  }}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                    editForm.zodiac === sign ? 'bg-[#800020]/10 text-[#800020] font-semibold' : 'text-gray-800'
-                  }`}
-                >
-                  {sign}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowZodiacModal(false)}
-                className="w-full py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Basics pickers */}
+      {[
+        {
+          open: showZodiacModal, close: () => setShowZodiacModal(false), field: 'zodiac' as const,
+          title: 'Zodiac', question: "What's your sign?", icon: Moon,
+          options: [
+            ['Aries', '♈'], ['Taurus', '♉'], ['Gemini', '♊'], ['Cancer', '♋'], ['Leo', '♌'], ['Virgo', '♍'],
+            ['Libra', '♎'], ['Scorpio', '♏'], ['Sagittarius', '♐'], ['Capricorn', '♑'], ['Aquarius', '♒'], ['Pisces', '♓'],
+          ],
+        },
+        {
+          open: showEducationModal, close: () => setShowEducationModal(false), field: 'education' as const,
+          title: 'Education', question: "What's your education level?", icon: GraduationCap,
+          options: [
+            ['High School', '🏫'], ['Some College', '📚'], ['Associate Degree', '📜'], ["Bachelor's Degree", '🎓'],
+            ["Master's Degree", '🎓'], ['Doctorate', '🔬'], ['Trade School', '🛠️'], ['Other', '✨'],
+          ],
+        },
+        {
+          open: showPetsModal, close: () => setShowPetsModal(false), field: 'pets' as const,
+          title: 'Pets', question: 'Do you have any pets?', icon: PawPrint,
+          options: [
+            ['Dog', '🐶'], ['Cat', '🐱'], ['Both', '🐾'], ['Other Pets', '🐠'],
+            ['No Pets', '🚫'], ['Want Pets', '💭'], ['Allergic to Pets', '🤧'],
+          ],
+        },
+        {
+          open: showDrinkingModal, close: () => setShowDrinkingModal(false), field: 'drinkingHabits' as const,
+          title: 'Drinking', question: 'How often do you drink?', icon: Wine,
+          options: [['Never', '🚫'], ['Rarely', '🥤'], ['Socially', '🥂'], ['Regularly', '🍷'], ['Prefer not to say', '🤐']],
+        },
+        {
+          open: showSmokingModal, close: () => setShowSmokingModal(false), field: 'smokingHabits' as const,
+          title: 'Smoking', question: 'How often do you smoke?', icon: Cigarette,
+          options: [['Never', '🚭'], ['Trying to Quit', '💪'], ['Socially', '👥'], ['Regularly', '🚬'], ['Prefer not to say', '🤐']],
+        },
+      ].map(({ open, close, field, title, question, icon, options }) => (
+        <OptionSheet
+          key={field}
+          open={open}
+          onClose={close}
+          title={title}
+          question={question}
+          icon={icon}
+          options={options.map(([value, emoji]) => ({ value, emoji }))}
+          value={editForm[field]}
+          onSelect={(value) => setEditForm((current) => ({ ...current, [field]: value }))}
+        />
+      ))}
 
-      {/* Education Selection Modal */}
-      {showEducationModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Select Education Level</h3>
-            </div>
-            <div className="overflow-y-auto max-h-[60vh]">
-              {['High School', 'Some College', 'Associate Degree', "Bachelor's Degree", "Master's Degree", 'Doctorate', 'Trade School', 'Other'].map((level) => (
-                <button
-                  key={level}
-                  onClick={() => {
-                    setEditForm({ ...editForm, education: level });
-                    setShowEducationModal(false);
-                  }}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                    editForm.education === level ? 'bg-[#800020]/10 text-[#800020] font-semibold' : 'text-gray-800'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowEducationModal(false)}
-                className="w-full py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pets Selection Modal */}
-      {showPetsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Select Pets</h3>
-            </div>
-            <div className="overflow-y-auto max-h-[60vh]">
-              {['Dog', 'Cat', 'Both', 'Other Pets', 'No Pets', 'Want Pets', 'Allergic to Pets'].map((option) => (
-                <button
-                  key={option}
-                  onClick={() => {
-                    setEditForm({ ...editForm, pets: option });
-                    setShowPetsModal(false);
-                  }}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                    editForm.pets === option ? 'bg-[#800020]/10 text-[#800020] font-semibold' : 'text-gray-800'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowPetsModal(false)}
-                className="w-full py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Drinking Habits Selection Modal */}
-      {showDrinkingModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Select Drinking Habits</h3>
-            </div>
-            <div className="overflow-y-auto max-h-[60vh]">
-              {['Never', 'Rarely', 'Socially', 'Regularly', 'Prefer not to say'].map((option) => (
-                <button
-                  key={option}
-                  onClick={() => {
-                    setEditForm({ ...editForm, drinkingHabits: option });
-                    setShowDrinkingModal(false);
-                  }}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                    editForm.drinkingHabits === option ? 'bg-[#800020]/10 text-[#800020] font-semibold' : 'text-gray-800'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowDrinkingModal(false)}
-                className="w-full py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Smoking Habits Selection Modal */}
-      {showSmokingModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Select Smoking Habits</h3>
-            </div>
-            <div className="overflow-y-auto max-h-[60vh]">
-              {['Never', 'Trying to Quit', 'Socially', 'Regularly', 'Prefer not to say'].map((option) => (
-                <button
-                  key={option}
-                  onClick={() => {
-                    setEditForm({ ...editForm, smokingHabits: option });
-                    setShowSmokingModal(false);
-                  }}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                    editForm.smokingHabits === option ? 'bg-[#800020]/10 text-[#800020] font-semibold' : 'text-gray-800'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowSmokingModal(false)}
-                className="w-full py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <LogOut className="w-8 h-8 text-[#800020]" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Logout</h2>
-              <p className="text-gray-600">Are you sure you want to logout?</p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 py-3 px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 hover:scale-105 active:scale-95 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmLogout}
-                className="flex-1 py-3 px-6 bg-[#800020] text-white rounded-lg hover:bg-[#660019] hover:scale-105 active:scale-95 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Logout confirmation */}
+      <LogoutDialog
+        open={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Bottom Navigation */}
       <nav className={`fixed bottom-0 left-0 right-0 ${isDarkMode ? 'bg-gray-900/95' : 'bg-white/95'} backdrop-blur-lg border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} px-4 sm:px-6 py-2 shadow-lg`}>
         <div className="max-w-md mx-auto flex items-center justify-around">
           <button 
             onClick={() => router.push('/home')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-pink-400/10 text-pink-400' : 'bg-[#800020]/10 text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-gray-300/10 text-gray-300' : 'bg-[#1f2937]/10 text-[#1f2937]'}`}
           >
             <HomeIcon className="w-6 h-6 transition-transform duration-300" />
             <span className="text-[10px] font-semibold mt-0.5">Home</span>
@@ -1393,12 +1309,12 @@ export default function HomePage() {
           
           <button 
             onClick={() => router.push('/liked-you')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <div className="relative">
               <Heart className="w-6 h-6 transition-transform duration-300" />
               {likedYouCount > 0 && (
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-pink-500 to-red-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-[#1f2937] text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                   {likedYouCount > 9 ? '9+' : likedYouCount}
                 </div>
               )}
@@ -1408,7 +1324,7 @@ export default function HomePage() {
           
           <button 
             onClick={() => router.push('/discover')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <svg className="w-6 h-6 transition-transform duration-300" viewBox="0 0 24 24" fill="currentColor">
               <rect x="2" y="6" width="20" height="3" rx="1.5"/>
@@ -1420,12 +1336,12 @@ export default function HomePage() {
           
           <button 
             onClick={() => router.push('/messages')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <div className="relative">
               <MessageCircle className="w-6 h-6 transition-transform duration-300" />
               {unreadCount > 0 && (
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </div>
               )}
@@ -1435,7 +1351,7 @@ export default function HomePage() {
           
           <button 
             onClick={() => router.push('/matches')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <Users className="w-6 h-6 transition-transform duration-300" />
             <span className="text-[10px] font-semibold mt-0.5">Matches</span>

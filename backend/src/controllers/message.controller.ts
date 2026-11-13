@@ -38,6 +38,7 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
     const messages = await prisma.message.findMany({
       where: whereClause,
       include: {
+        reactions: { select: { userId: true, emoji: true } },
         sender: {
           include: {
             profile: {
@@ -127,6 +128,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
         content,
       },
       include: {
+        reactions: { select: { userId: true, emoji: true } },
         sender: {
           include: {
             profile: {
@@ -250,6 +252,7 @@ export const getMessagesByUserId = async (req: AuthRequest, res: Response) => {
     // Get messages
     const messages = await prisma.message.findMany({
       where: { matchId: match.id },
+      include: { reactions: { select: { userId: true, emoji: true } } },
       orderBy: {
         createdAt: 'asc',
       },

@@ -305,10 +305,18 @@ export const getReceivedLikes = async (req: AuthRequest, res: Response) => {
     const currentUserId = req.userId!;
     console.log('📥 Getting received likes for user:', currentUserId);
 
-    // Get all likes where current user is the recipient
+    // People you've already answered (liked back = a match, or passed) leave the Likes list
+    const [likedBack, passed] = await Promise.all([
+      prisma.like.findMany({ where: { fromUserId: currentUserId }, select: { toUserId: true } }),
+      prisma.pass.findMany({ where: { fromUserId: currentUserId }, select: { toUserId: true } }),
+    ]);
+    const answeredIds = [...likedBack, ...passed].map((r) => r.toUserId);
+
+    // Get all likes where current user is the recipient and hasn't responded yet
     const likes = await prisma.like.findMany({
       where: {
         toUserId: currentUserId,
+        fromUserId: { notIn: answeredIds },
       },
       include: {
         fromUser: {

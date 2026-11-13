@@ -1,7 +1,6 @@
-  import { io, Socket } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { notificationService } from './notifications';
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5001';
+import { API_URL, SOCKET_URL } from './config';
 
 class SocketClient {
   private socket: Socket | null = null;
@@ -41,7 +40,7 @@ class SocketClient {
       const userImage = data.user?.profile?.photos?.[0]
         ? (data.user.profile.photos[0].startsWith('http') 
           ? data.user.profile.photos[0] 
-          : `http://localhost:5001${data.user.profile.photos[0]}`)
+          : `${API_URL}${data.user.profile.photos[0]}`)
         : '/images/mflogo.png';
       
       notificationService.showMatchNotification(
@@ -55,7 +54,7 @@ class SocketClient {
     this.socket.on('new_message', (data: any) => {
       console.log('💬 New message notification:', data);
       // Only show notification if user is not on the current chat page
-      if (!window.location.pathname.includes(`/messages/${data.senderId}`)) {
+      if (!window.location.search.includes(`userId=${data.senderId}`)) {
         const userImage = data.senderImage || '/images/mflogo.png';
         notificationService.showMessageNotification(
           data.senderName || 'Someone',
@@ -72,7 +71,7 @@ class SocketClient {
       const userImage = data.user?.profile?.photos?.[0]
         ? (data.user.profile.photos[0].startsWith('http') 
           ? data.user.profile.photos[0] 
-          : `http://localhost:5001${data.user.profile.photos[0]}`)
+          : `${API_URL}${data.user.profile.photos[0]}`)
         : '/images/mflogo.png';
       
       notificationService.showLikeNotification(
@@ -102,6 +101,30 @@ class SocketClient {
 
   sendMessage(matchId: string, content: string) {
     this.socket?.emit('send_message', { matchId, content });
+  }
+
+  reactToMessage(messageId: string, emoji: string | null) {
+    this.socket?.emit('react_message', { messageId, emoji });
+  }
+
+  onMessageReaction(callback: (data: { messageId: string; reactions: { userId: string; emoji: string }[] }) => void) {
+    this.socket?.on('message_reaction', callback);
+  }
+
+  offMessageReaction() {
+    this.socket?.off('message_reaction');
+  }
+
+  markRead(matchId: string) {
+    this.socket?.emit('mark_read', matchId);
+  }
+
+  onMessagesRead(callback: (data: { matchId: string; readerId: string }) => void) {
+    this.socket?.on('messages_read', callback);
+  }
+
+  offMessagesRead() {
+    this.socket?.off('messages_read');
   }
 
   onNewMessage(callback: (message: any) => void) {

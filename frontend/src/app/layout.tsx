@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import PageTransitions from '@/components/PageTransitions';
+import MatchWatcher from '@/components/MatchWatcher';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -42,6 +44,8 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider>
           {children}
+          <PageTransitions />
+          <MatchWatcher />
         </ThemeProvider>
       </body>
     </html>

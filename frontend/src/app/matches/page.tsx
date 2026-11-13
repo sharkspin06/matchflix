@@ -1,10 +1,12 @@
 'use client';
 
+import { API_URL } from '@/lib/config';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, Heart, Users, LogOut } from 'lucide-react';
+import { MessageCircle, Heart, Users, LogOut, Home, Sparkles, Film, MapPin } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import LogoutDialog from '@/components/LogoutDialog';
 
 interface Match {
   matchId: string;
@@ -39,8 +41,9 @@ export default function MatchesPage() {
   };
 
   const confirmLogout = () => {
+    setShowLogoutModal(false);
     localStorage.removeItem('token');
-    router.push('/');
+    router.replace('/');
   };
 
   const fetchMatches = async () => {
@@ -51,7 +54,7 @@ export default function MatchesPage() {
         return;
       }
 
-      const response = await fetch('http://localhost:5001/api/matches', {
+      const response = await fetch(`${API_URL}/api/matches`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -68,7 +71,7 @@ export default function MatchesPage() {
             const photoPath = match.user.profile.photos[0];
             imageUrl = photoPath.startsWith('http') 
               ? photoPath 
-              : `http://localhost:5001${photoPath}`;
+              : `${API_URL}${photoPath}`;
           }
           
           return {
@@ -100,7 +103,7 @@ export default function MatchesPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/messages/unread/count', {
+      const response = await fetch(`${API_URL}/api/messages/unread/count`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -120,7 +123,7 @@ export default function MatchesPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/likes/received', {
+      const response = await fetch(`${API_URL}/api/likes/received`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -141,7 +144,7 @@ export default function MatchesPage() {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} flex items-center justify-center`}>
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#800020] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#1f2937] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Loading matches...</p>
         </div>
       </div>
@@ -151,41 +154,17 @@ export default function MatchesPage() {
   return (
     <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <header className={`px-4 sm:px-6 py-4 flex items-center justify-center relative ${isDarkMode ? 'bg-gray-800 border-b border-gray-700' : 'bg-white border-b border-gray-200'}`}>
+      <header className={`min-h-[72px] px-4 sm:px-6 py-4 flex items-center justify-center relative ${isDarkMode ? 'bg-gray-800 border-b border-gray-700' : 'bg-white border-b border-gray-200'}`}>
         {/* Dark Mode Toggle */}
         <div className="absolute left-2 sm:left-6">
           <ThemeToggle />
         </div>
 
-        <div className="flex items-center gap-3">
-          <img 
-            src="/images/mflogo.png" 
-            alt="MatchFlix Logo" 
-            className="w-10 h-10 object-contain"
-            style={{ filter: 'drop-shadow(0 0 1px white) drop-shadow(0 0 1px white)' }}
-          />
-          <h1 
-            className="text-2xl sm:text-3xl font-bold" 
-            style={{ 
-              fontFamily: '"Kavoon", serif', 
-              fontWeight: 400, 
-              fontStyle: 'normal',
-              background: 'linear-gradient(135deg, #800020 0%, #ff6b6b 50%, #800020 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              WebkitTextStroke: '0.5px rgba(255, 255, 255, 0.3)',
-              textShadow: '0 0 1px rgba(255, 255, 255, 0.2)'
-            }}
-          >
-            Matchflix
-          </h1>
-        </div>
 
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className={`absolute right-2 sm:right-6 flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 transition-colors ${isDarkMode ? 'text-gray-300 hover:text-[#800020]' : 'text-gray-600 hover:text-[#800020]'}`}
+          className={`absolute right-2 sm:right-6 flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 transition-all duration-200 ease-out ${isDarkMode ? 'text-gray-300 hover:text-[#1f2937]' : 'text-gray-600 hover:text-[#1f2937]'}`}
         >
           <LogOut className="w-5 h-5" />
           <span className="text-xs sm:text-sm font-medium hidden sm:inline">Logout</span>
@@ -193,52 +172,107 @@ export default function MatchesPage() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 pb-24 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 py-6">
+      <main className="flex-1 pb-28 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-5 sm:px-6 pt-6">
+          {/* Header */}
+          <div className="flex items-end justify-between gap-4 mb-6">
+            <div>
+              <h2 className={`text-[28px] leading-tight font-extrabold tracking-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Matches
+              </h2>
+              <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {matches.length === 0
+                  ? 'When you both like each other, they show up here'
+                  : `${matches.length} ${matches.length === 1 ? 'person' : 'people'} you clicked with`}
+              </p>
+            </div>
+            <span
+              className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-sm font-semibold ${
+                isDarkMode ? 'bg-gray-800 text-gray-100' : 'bg-gray-100 text-gray-900'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              {matches.length}
+            </span>
+          </div>
+
           {matches.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="w-24 h-24 mx-auto mb-6 text-gray-300">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
+            <div className="flex flex-col items-center text-center pt-10 pb-6">
+              {/* Illustration: two profiles meeting over a heart */}
+              <div className="relative w-52 h-36 mb-8" aria-hidden="true">
+                <div
+                  className={`absolute left-4 top-4 w-28 h-28 rounded-full -rotate-6 flex items-center justify-center ring-4 ${
+                    isDarkMode ? 'bg-gray-800 ring-gray-900' : 'bg-gray-200 ring-gray-50'
+                  }`}
+                >
+                  <Users className={`w-10 h-10 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+                </div>
+                <div
+                  className={`absolute right-4 top-4 w-28 h-28 rounded-full rotate-6 flex items-center justify-center ring-4 ${
+                    isDarkMode ? 'bg-gray-700 ring-gray-900' : 'bg-gray-300/80 ring-gray-50'
+                  }`}
+                >
+                  <Film className={`w-10 h-10 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`} />
+                </div>
+                <span className="absolute left-1/2 -translate-x-1/2 top-11 w-14 h-14 rounded-full bg-[#1f2937] flex items-center justify-center shadow-[0_12px_28px_-8px_rgba(17,24,39,0.7)] ring-4 ring-white">
+                  <Heart className="w-6 h-6 text-white" fill="white" />
+                </span>
               </div>
-              <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>No matches yet</h2>
-              <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Start swiping to find your perfect match!</p>
+
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>No matches yet</h3>
+              <p className={`mt-2 max-w-xs text-sm leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Like someone on Discover. If they like you back, it&apos;s a match and you can start chatting.
+              </p>
+
+              <div className="mt-8 w-full max-w-xs space-y-3">
+                <button
+                  onClick={() => router.push('/discover')}
+                  className="w-full h-12 rounded-full bg-[#1f2937] hover:bg-[#111827] text-white text-sm font-semibold inline-flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Start swiping
+                </button>
+                <button
+                  onClick={() => router.push('/liked-you')}
+                  className={`w-full h-12 rounded-full text-sm font-semibold ${
+                    isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-100' : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                  }`}
+                >
+                  See who liked me
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               {matches.map((match) => (
                 <button
                   key={match.matchId}
-                  onClick={() => router.push(`/messages/${match.userId}`)}
-                  className={`rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden group ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
+                  onClick={() => router.push(`/messages/chat?userId=${match.userId}`)}
+                  className="group relative aspect-[3/4] rounded-[22px] overflow-hidden bg-gray-800 text-left shadow-[0_12px_28px_-12px_rgba(0,0,0,0.45)] hover:-translate-y-0.5"
                 >
-                  {/* Profile Photo */}
-                  <div className="relative aspect-[3/4] overflow-hidden">
-                    <img
-                      src={match.image}
-                      alt={match.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                    
-                    {/* Info Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                      <h3 className="text-lg font-bold truncate">
-                        {match.name}, {match.age}
-                      </h3>
-                      <p className="text-xs opacity-90 truncate">
-                        {match.location}
-                      </p>
-                    </div>
-                  </div>
+                  <img
+                    src={match.image}
+                    alt={match.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-                  {/* Message Button */}
-                  <div className="p-3">
-                    <div className="w-full py-2 rounded-full bg-[#800020] hover:bg-[#660019] flex items-center justify-center gap-2 transition-colors">
-                      <MessageCircle className="w-4 h-4 text-white" />
-                      <span className="text-sm font-medium text-white">Message</span>
+                  <div className="absolute inset-x-0 bottom-0 p-3.5 flex items-end gap-2 text-white">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold leading-tight truncate">
+                        {match.name}
+                        <span className="font-light text-white/85">, {match.age}</span>
+                      </h3>
+                      {match.location && (
+                        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/75 truncate">
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{match.location}</span>
+                        </p>
+                      )}
                     </div>
+                    <span className="flex-shrink-0 w-10 h-10 rounded-full bg-white text-[#1f2937] flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                      <MessageCircle className="w-[18px] h-[18px]" />
+                    </span>
                   </div>
                 </button>
               ))}
@@ -247,25 +281,26 @@ export default function MatchesPage() {
         </div>
       </main>
 
+
       {/* Bottom Navigation */}
       <nav className={`fixed bottom-0 left-0 right-0 ${isDarkMode ? 'bg-gray-900/95' : 'bg-white/95'} backdrop-blur-lg border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} px-4 sm:px-6 py-2 shadow-lg z-50`}>
         <div className="max-w-md mx-auto flex justify-around items-center">
           <button 
             onClick={() => router.push('/home')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
-            <Heart className="w-6 h-6 transition-transform duration-300" />
+            <Home className="w-6 h-6 transition-transform duration-300" />
             <span className="text-[10px] font-semibold mt-0.5">Home</span>
           </button>
           
           <button 
             onClick={() => router.push('/liked-you')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <div className="relative">
               <Heart className="w-6 h-6 transition-transform duration-300" />
               {likedYouCount > 0 && (
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-pink-500 to-red-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-[#1f2937] text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                   {likedYouCount > 9 ? '9+' : likedYouCount}
                 </div>
               )}
@@ -275,7 +310,7 @@ export default function MatchesPage() {
           
           <button 
             onClick={() => router.push('/discover')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <svg className="w-6 h-6 transition-transform duration-300" viewBox="0 0 24 24" fill="currentColor">
               <rect x="2" y="6" width="20" height="3" rx="1.5"/>
@@ -287,12 +322,12 @@ export default function MatchesPage() {
           
           <button 
             onClick={() => router.push('/messages')}
-            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-pink-400' : 'hover:bg-gray-100 text-gray-500 hover:text-[#800020]'}`}
+            className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-300' : 'hover:bg-gray-100 text-gray-500 hover:text-[#1f2937]'}`}
           >
             <div className="relative">
               <MessageCircle className="w-6 h-6 transition-transform duration-300" />
               {unreadCount > 0 && (
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </div>
               )}
@@ -300,41 +335,20 @@ export default function MatchesPage() {
             <span className="text-[10px] font-semibold mt-0.5">Messages</span>
           </button>
           
-          <button className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-pink-400/10 text-pink-400' : 'bg-[#800020]/10 text-[#800020]'}`}>
+          <button className={`flex flex-col items-center gap-0.5 min-w-[60px] py-2 px-3 rounded-2xl transition-all duration-300 ${isDarkMode ? 'bg-gray-300/10 text-gray-300' : 'bg-[#1f2937]/10 text-[#1f2937]'}`}>
             <Users className="w-6 h-6 transition-transform duration-300" />
             <span className="text-[10px] font-semibold mt-0.5">Matches</span>
           </button>
         </div>
       </nav>
 
-      {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-2xl max-w-sm w-full p-6`}>
-            <div className="text-center mb-6">
-              <div className={`w-16 h-16 ${isDarkMode ? 'bg-red-900/30' : 'bg-red-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                <LogOut className="w-8 h-8 text-[#800020]" />
-              </div>
-              <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-2`}>Logout</h2>
-              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Are you sure you want to logout?</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmLogout}
-                className="flex-1 px-4 py-3 bg-[#800020] hover:bg-[#660019] text-white font-medium rounded-lg transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Logout confirmation */}
+      <LogoutDialog
+        open={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 }

@@ -93,7 +93,7 @@ export class NotificationService {
       icon: userImage,
       tag: `match-${userId}`,
       data: {
-        url: `/messages/${userId}`,
+        url: `/messages/chat?userId=${userId}`,
         type: 'match',
         userId,
       },
@@ -106,7 +106,7 @@ export class NotificationService {
       icon: userImage,
       tag: `message-${userId}`,
       data: {
-        url: `/messages/${userId}`,
+        url: `/messages/chat?userId=${userId}`,
         type: 'message',
         userId,
       },
