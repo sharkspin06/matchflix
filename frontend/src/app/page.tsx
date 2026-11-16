@@ -24,7 +24,7 @@ function SplashScreen({ visible, animateIn }: { visible: boolean; animateIn: boo
       style={{ transitionDuration: `${SPLASH_FADE_MS}ms` }}
     >
       <div className={`flex flex-col items-center transition-all duration-700 ease-out ${entered ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
-        <p className="text-white/75 text-sm tracking-wide">Love at first frame</p>
+        <p className="text-white/75 text-sm tracking-wide">What's your Letterboxd?</p>
       </div>
     </div>
   );

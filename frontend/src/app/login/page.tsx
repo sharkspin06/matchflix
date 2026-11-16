@@ -7,8 +7,6 @@ import { Eye, EyeOff } from 'lucide-react';
 import BackButton from '@/components/BackButton';
 import { api } from '@/lib/api';
 import ModernInput from '@/components/ModernInput';
-import GoogleButton from '@/components/GoogleButton';
-import { GOOGLE_SIGNUP_KEY } from '@/lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -53,30 +51,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleCredential = async (credential: string) => {
-    setError('');
-    setLoading(true);
-    try {
-      const response = await api.googleAuth(credential);
-      if (response.needsProfile) {
-        // No account yet: finish sign-up with the Google details already filled in
-        sessionStorage.setItem(GOOGLE_SIGNUP_KEY, JSON.stringify(response));
-        router.push('/register');
-        return;
-      }
-      localStorage.setItem('token', response.token);
-      setIsTransitioning(true);
-      setTimeout(() => router.replace('/discover'), 300);
-    } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div
-      className={`theme-surface min-h-screen bg-white flex items-center justify-center px-4 relative transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+      className={`theme-surface min-h-[100dvh] bg-white flex items-start sm:items-center justify-center px-4 pt-12 pb-8 sm:py-8 relative transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
     >
       {/* Content */}
       <div className="w-full max-w-md relative z-10">
@@ -158,13 +135,6 @@ export default function LoginPage() {
               <span className="px-4 bg-white page-bg text-gray-500">OR</span>
             </div>
           </div>
-
-          <GoogleButton
-            text="signin_with"
-            disabled={loading}
-            onCredential={handleGoogleCredential}
-            onError={setError}
-          />
 
           <p className="text-center text-sm text-gray-600">
             Don't have an account?{' '}

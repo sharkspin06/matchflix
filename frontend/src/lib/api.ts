@@ -50,29 +50,6 @@ class ApiClient {
     });
   }
 
-  // Google sign-in: logs in an existing account, or starts sign-up for a new one
-  async googleAuth(credential: string) {
-    return this.request<
-      | { token: string; user: any; needsProfile?: undefined }
-      | { needsProfile: true; signupToken: string; email: string; name: string; token?: undefined }
-    >('/api/auth/google', {
-      method: 'POST',
-      body: JSON.stringify({ credential }),
-    });
-  }
-
-  async completeGoogleSignup(data: {
-    signupToken: string;
-    name: string;
-    birthday: string;
-    gender: string;
-  }) {
-    return this.request<{ token: string; user: any }>('/api/auth/google/complete', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
   // Profile
   async getProfile() {
     return this.request<any>('/api/profile');
