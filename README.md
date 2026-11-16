@@ -1,93 +1,174 @@
-# matchflix-dating-up
+# 🎬 MatchFlix
 
+**A dating app for film lovers.** Show off your top four films, swipe through people nearby, and when you both like each other, start talking about movies in real time.
 
+> *What's your Letterboxd?*
 
-## Getting started
+Available as a web app and as an Android app (built with Capacitor).
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## ✨ Features
 
-## Add your files
+- **Film-first profiles**: pick your top 4 films (powered by TMDB search), plus photos, bio, interests, zodiac, education, pets, and drinking/smoking habits
+- **Discover**: browse people filtered by gender preference, age range, and distance
+- **Like or pass**: a match is made when two people like each other, with a match pop-up
+- **Liked You**: see who has already liked you
+- **Real-time chat**: instant messages, typing indicators, read receipts, and emoji reactions (Socket.IO)
+- **Unread badges & notifications**: unread message counts and local notifications on Android
+- **Date or Friend mode**: say whether you're looking for a date or someone to watch films with
+- **Inclusive identity options**: multiple gender identities and sexual orientations
+- **Safe sign-up**: age is worked out from your birthday (18+ only), and passwords must be strong
+- **Light & dark mode**
+- **Android app** with location and notification permissions
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+---
+
+## 🛠 Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14 (App Router, static export), React 18, TypeScript, Tailwind CSS, Lucide icons |
+| Mobile | Capacitor 8 (Android) |
+| Backend | Node.js, Express, TypeScript, Socket.IO |
+| Database | PostgreSQL (Supabase) with Prisma ORM |
+| Storage | Supabase Storage for profile photos |
+| Auth | JWT + bcrypt |
+| Film data | [TMDB API](https://www.themoviedb.org/) |
+
+---
+
+## 📁 Project Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/sharkspin06/matchflix-dating-up.git
-git branch -M main
-git push -uf origin main
+matchflix/
+├── backend/            # Express API + Socket.IO server
+│   ├── prisma/         # Database schema and migrations
+│   └── src/
+│       ├── controllers/
+│       ├── routes/     # auth, profile, users, matches, messages, passes
+│       ├── socket/     # real-time chat
+│       └── utils/
+├── frontend/           # Next.js app
+│   ├── android/        # Capacitor Android project
+│   └── src/
+│       ├── app/        # pages: discover, matches, messages, liked-you, login, register…
+│       ├── components/
+│       └── lib/        # API client, socket, notifications
+└── package.json        # npm workspaces
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://gitlab.com/sharkspin06/matchflix-dating-up/-/settings/integrations)
+## 🚀 Getting Started
 
-## Collaborate with your team
+### Prerequisites
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+- Node.js 18+
+- A PostgreSQL database (for example a free [Supabase](https://supabase.com/) project)
+- A Supabase Storage bucket for photos
+- *(For Android)* Android Studio with JDK 21
 
-## Test and Deploy
+### 1. Clone and install
 
-Use the built-in continuous integration in GitLab.
+```bash
+git clone https://github.com/sharkspin06/matchflix.git
+cd matchflix
+npm install
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### 2. Set up environment variables
 
-***
+**`backend/.env`** (copy from `backend/.env.example`)
 
-# Editing this README
+```env
+DATABASE_URL="postgresql://username:password@host:5432/matchflix"
+JWT_SECRET="a-long-random-secret"
+PORT=5001
+NODE_ENV=development
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+SUPABASE_URL="https://your-project-ref.supabase.co"
+SUPABASE_SECRET_KEY="sb_secret_your-secret-key"
+```
 
-## Suggestions for a good README
+**`frontend/.env.local`** (copy from `frontend/.env.local.example`)
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5001
+NEXT_PUBLIC_SOCKET_URL=http://localhost:5001
+```
 
-## Name
-Choose a self-explaining name for your project.
+### 3. Set up the database
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```bash
+cd backend
+npx prisma migrate deploy
+npx prisma generate
+cd ..
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+### 4. Run it
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+```bash
+npm run dev
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+This starts both apps:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- Frontend: http://localhost:3000
+- Backend: http://localhost:5001
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+---
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## 📱 Android App
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+cd frontend
+npm run build:android   # builds the app and syncs it into the Android project
+npm run open:android    # opens it in Android Studio
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+By default, the Android build talks to `http://10.0.2.2:5001`, which is your computer as seen from the Android emulator. To test on a real phone, use your computer's local IP address:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```bash
+ANDROID_API_URL=http://192.168.1.10:5001 npm run build:android
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+---
 
-## License
-For open source projects, say how it is licensed.
+## 🔌 API Overview
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/auth/register` | Create an account |
+| POST | `/api/auth/login` | Log in |
+| GET | `/api/auth/check-email` | Check if an email is taken |
+| GET / PUT | `/api/profile` | Get or update your profile |
+| POST | `/api/profile/photos` | Add a photo |
+| DELETE | `/api/profile/photo` | Remove a photo |
+| GET | `/api/users/discover` | Get people to discover |
+| POST | `/api/matches/like/:userId` | Like someone |
+| POST | `/api/matches/pass/:userId` | Pass on someone |
+| GET | `/api/matches` | Your matches |
+| GET | `/api/matches/received` | People who liked you |
+| GET | `/api/messages/conversations` | Your conversations |
+| GET | `/api/messages/unread/count` | Unread message count |
+
+**Socket events:** `join_match`, `send_message`, `typing`, `mark_read`, `react_message`
+
+---
+
+## 📜 Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Run frontend and backend together |
+| `npm run build` | Build both apps |
+| `npm run start` | Start the backend in production mode |
+| `npm run prisma:studio --workspace=backend` | Browse the database in Prisma Studio |
+
+---
+
+## 👤 Author
+
+Made with 🍿 by **[sharkspin06](https://github.com/sharkspin06)**
