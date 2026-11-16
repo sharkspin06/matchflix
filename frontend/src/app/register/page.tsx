@@ -1,15 +1,14 @@
 'use client';
 
-import { API_URL, GOOGLE_SIGNUP_KEY } from '@/lib/config';
-import { useEffect, useRef, useState } from 'react';
+import { API_URL } from '@/lib/config';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Upload, Eye, EyeOff, MapPin, Bell, Smartphone, Loader2, CheckCircle2, AlertCircle, Heart, Popcorn, Check, Search, Plus, X, Lock } from 'lucide-react';
+import { Upload, Eye, EyeOff, MapPin, Bell, Loader2, CheckCircle2, AlertCircle, Heart, Popcorn, Check, Search, Plus, X, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { requestLocation, requestNotifications, UserLocation } from '@/lib/permissions';
 import ModernInput from '@/components/ModernInput';
 import BackButton from '@/components/BackButton';
-import GoogleButton from '@/components/GoogleButton';
 import BirthdayInput from '@/components/BirthdayInput';
 import PasswordStrength, { isStrongPassword } from '@/components/PasswordStrength';
 import { defaultAgeRange } from '@/lib/utils';
@@ -51,7 +50,6 @@ const FILM_COUNT = 4;
 
 const PRIMARY_BUTTON = 'w-full h-12 px-5 bg-[#1f2937] hover:bg-[#111827] text-white font-semibold rounded-xl transition-all duration-200 ease-out active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300 disabled:opacity-50 disabled:cursor-not-allowed';
 const SECONDARY_BUTTON = 'w-full py-3 px-5 text-gray-600 hover:text-[#1f2937] font-medium transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed';
-const COMING_SOON_BUTTON = 'w-full py-3 px-5 flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-400 font-medium rounded-lg cursor-not-allowed';
 
 // Requires something@domain.tld, so "name@" or "name@site" doesn't count as finished
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
@@ -165,8 +163,6 @@ export default function RegisterPage() {
   const accountToken = useRef<string | null>(null);
   const uploadedPhotoCount = useRef(0);
 
-  // Set when sign-up started with Google: the account is created with this instead of a password
-  const [googleSignup, setGoogleSignup] = useState<{ signupToken: string; email: string } | null>(null);
 
   const [emailAvailable, setEmailAvailable] = useState(false);
   const emailCheckTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -246,47 +242,7 @@ export default function RegisterPage() {
     goToStep(step + 1);
   };
 
-  const startGoogleSignup = (data: { signupToken: string; email: string; name: string }) => {
-    setGoogleSignup({ signupToken: data.signupToken, email: data.email });
-    setFormData((current) => ({ ...current, email: data.email, password: '', name: current.name || data.name }));
-    goToStep(STEPS.LOCATION);
-  };
-
-  // Picks up a Google sign-up that started on the login page
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(GOOGLE_SIGNUP_KEY);
-      if (!saved) return;
-      sessionStorage.removeItem(GOOGLE_SIGNUP_KEY);
-      startGoogleSignup(JSON.parse(saved));
-    } catch {
-      // Nothing usable saved: start with the normal sign-up
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleGoogleCredential = async (credential: string) => {
-    setError('');
-    setRequestingPermission(true);
-    try {
-      const response = await api.googleAuth(credential);
-      if (response.needsProfile) {
-        startGoogleSignup(response);
-        return;
-      }
-      // Already has an account: just sign them in
-      localStorage.setItem('token', response.token);
-      setIsTransitioning(true);
-      setTimeout(() => router.replace('/discover'), 300);
-    } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
-    } finally {
-      setRequestingPermission(false);
-    }
-  };
-
   const handleAccountNext = async () => {
-    setGoogleSignup(null);
     const email = formData.email.trim();
     if (!isValidEmail(email)) {
       setEmailError('Please enter a valid email address');
@@ -404,20 +360,13 @@ export default function RegisterPage() {
     try {
       setCreateStage({ step: 1, label: 'Creating your account' });
       if (!accountToken.current) {
-        const response = googleSignup
-          ? await api.completeGoogleSignup({
-              signupToken: googleSignup.signupToken,
-              name: formData.name.trim(),
-              birthday: formData.birthday,
-              gender: formData.gender,
-            })
-          : await api.register({
-              name: formData.name.trim(),
-              email: formData.email,
-              password: formData.password,
-              birthday: formData.birthday,
-              gender: formData.gender,
-            });
+        const response = await api.register({
+          name: formData.name.trim(),
+          email: formData.email,
+          password: formData.password,
+          birthday: formData.birthday,
+          gender: formData.gender,
+        });
         accountToken.current = response.token;
         localStorage.setItem('token', response.token);
       }
@@ -503,27 +452,6 @@ export default function RegisterPage() {
               </div>
 
               <ErrorMessage message={error} />
-
-              <div className="space-y-3">
-                <GoogleButton
-                  text="signup_with"
-                  disabled={requestingPermission}
-                  onCredential={handleGoogleCredential}
-                  onError={setError}
-                />
-                {/* Not connected yet: needs an SMS provider */}
-                <button disabled className={COMING_SOON_BUTTON}>
-                  <Smartphone className="w-5 h-5" />
-                  Use mobile number
-                </button>
-                <p className="text-center text-xs text-gray-500">Mobile sign-in is coming soon</p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 border-t border-gray-200" />
-                <span className="text-xs text-gray-500">or use your email</span>
-                <div className="flex-1 border-t border-gray-200" />
-              </div>
 
               <div className="space-y-4">
                 <ModernInput
