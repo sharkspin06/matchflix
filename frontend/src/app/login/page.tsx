@@ -58,12 +58,15 @@ export default function LoginPage() {
     >
       {/* Content */}
       <div className="w-full max-w-md relative z-10">
+        <div className="flex justify-center mb-4">
+          <Logo className="h-14 sm:h-16" />
+        </div>
+
         {/* Back to Home Button */}
         <BackButton href="/" label="Home" className="mb-2 ml-6 sm:ml-8" />
 
         <div className="space-y-6 px-6 py-8 sm:px-8">
           <div className="text-center mb-8">
-            <Logo className="h-16 mx-auto mb-4" />
             <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome Back</h2>
             <p className="text-gray-600 text-sm">Sign in to continue your journey</p>
           </div>

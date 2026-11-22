@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { requestLocation, requestNotifications, UserLocation } from '@/lib/permissions';
 import ModernInput from '@/components/ModernInput';
 import BackButton from '@/components/BackButton';
+import Logo from '@/components/Logo';
 import BirthdayInput from '@/components/BirthdayInput';
 import PasswordStrength, { isStrongPassword } from '@/components/PasswordStrength';
 import { defaultAgeRange } from '@/lib/utils';
@@ -436,6 +437,11 @@ export default function RegisterPage() {
           </div>
         </div>
       )}
+
+      <div className="w-full max-w-md relative z-10">
+      <div className="flex justify-center mb-4">
+        <Logo className="h-14 sm:h-16" />
+      </div>
 
       {/* Content */}
       <div className={`w-full max-w-md transition-all duration-300 relative z-10 ${isStepTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
@@ -915,6 +921,7 @@ export default function RegisterPage() {
             </button>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

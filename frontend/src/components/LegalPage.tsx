@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import BackButton from '@/components/BackButton';
+import Logo from '@/components/Logo';
 import { LEGAL } from '@/lib/legal';
 
 export interface LegalSection {
@@ -22,8 +23,11 @@ export default function LegalPage({ title, intro, sections, other }: LegalPagePr
   return (
     <div className="theme-surface min-h-screen bg-white">
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-gray-100">
-        <div className="max-w-3xl mx-auto h-16 px-4 flex items-center justify-between">
+        <div className="relative max-w-3xl mx-auto h-16 px-4 flex items-center justify-between">
           <BackButton href="/" label="Home" />
+          <Link href="/" aria-label="MatchFlix home" className="absolute left-1/2 -translate-x-1/2">
+            <Logo className="h-9" />
+          </Link>
           <Link href={other.href} className="text-sm font-semibold text-gray-600 hover:text-gray-900">
             {other.label}
           </Link>
