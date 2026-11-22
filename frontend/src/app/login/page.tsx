@@ -7,6 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import BackButton from '@/components/BackButton';
 import { api } from '@/lib/api';
 import ModernInput from '@/components/ModernInput';
+import Logo from '@/components/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -62,6 +63,7 @@ export default function LoginPage() {
 
         <div className="space-y-6 px-6 py-8 sm:px-8">
           <div className="text-center mb-8">
+            <Logo className="h-16 mx-auto mb-4" />
             <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome Back</h2>
             <p className="text-gray-600 text-sm">Sign in to continue your journey</p>
           </div>

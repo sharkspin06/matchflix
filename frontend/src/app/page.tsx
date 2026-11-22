@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
+import Logo from '@/components/Logo';
 
 const SPLASH_DURATION_MS = 1800;
 const SPLASH_FADE_MS = 500;
@@ -234,6 +235,7 @@ export default function Home() {
         <div className="px-4 py-6 sm:p-8 lg:p-12 mx-auto">
           <MobileHero />
           <div className="flex flex-col items-center mt-4 mb-6 lg:mt-0 lg:mb-10">
+            <Logo className="h-20 sm:h-24 mb-4" />
             <p className="w-full text-gray-600 text-center text-sm leading-relaxed text-balance">
               Follow mo naman ako sa Letterboxd.
               <br />
