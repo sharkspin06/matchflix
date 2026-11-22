@@ -233,9 +233,11 @@ export default function Home() {
       {/* Right Side - Welcome Options */}
       <div className="w-full max-w-md lg:max-w-lg relative z-20">
         <div className="px-4 py-6 sm:p-8 lg:p-12 mx-auto">
+          <div className="flex justify-center mb-4 lg:mb-6">
+            <Logo className="h-16 sm:h-20 lg:h-24" />
+          </div>
           <MobileHero />
           <div className="flex flex-col items-center mt-4 mb-6 lg:mt-0 lg:mb-10">
-            <Logo className="h-20 sm:h-24 mb-4" />
             <p className="w-full text-gray-600 text-center text-sm leading-relaxed text-balance">
               Follow mo naman ako sa Letterboxd.
               <br />
