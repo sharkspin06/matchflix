@@ -92,6 +92,7 @@ function StepCard({ title, subtitle, error, onBack, children }: {
       <BackButton onClick={onBack} label="Back" />
 
       <div className="text-center mb-8">
+        <Logo className="h-14 sm:h-16 mx-auto mb-3" />
         <h2 className="text-2xl font-semibold text-gray-800 mb-2">{title}</h2>
         {subtitle && <p className="text-gray-600 text-sm">{subtitle}</p>}
       </div>
@@ -438,11 +439,6 @@ export default function RegisterPage() {
         </div>
       )}
 
-      <div className="w-full max-w-md relative z-10">
-      <div className="flex justify-center mb-4">
-        <Logo className="h-14 sm:h-16" />
-      </div>
-
       {/* Content */}
       <div className={`w-full max-w-md transition-all duration-300 relative z-10 ${isStepTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
         {/* Step 1: Create account */}
@@ -451,8 +447,9 @@ export default function RegisterPage() {
             {/* Back to Home Button */}
             <BackButton href="/" label="Home" className="mb-2 ml-6 sm:ml-8" />
 
-            <div className="space-y-6 px-6 py-8 sm:px-8">
+            <div className="space-y-6 px-6 pt-4 pb-8 sm:px-8">
               <div className="text-center mb-8">
+                <Logo className="h-14 sm:h-16 mx-auto mb-3" />
                 <h2 className="text-2xl font-semibold text-gray-800 mb-2">Create Your Account</h2>
                 <p className="text-gray-600 text-sm">Start your journey to find your perfect match</p>
               </div>
@@ -881,7 +878,10 @@ export default function RegisterPage() {
             <BackButton onClick={handleBack} disabled={loading} label="Back" />
 
             <div className="text-center space-y-6">
-              <h2 className="text-3xl font-bold text-gray-800">Before you swipe</h2>
+              <div>
+                <Logo className="h-14 sm:h-16 mx-auto mb-3" />
+                <h2 className="text-3xl font-bold text-gray-800">Before you swipe</h2>
+              </div>
 
               <div className="text-justify hyphens-auto space-y-4 max-w-lg mx-auto leading-relaxed">
                 <p className="text-gray-700">
@@ -921,7 +921,6 @@ export default function RegisterPage() {
             </button>
           </div>
         )}
-      </div>
       </div>
     </div>
   );
