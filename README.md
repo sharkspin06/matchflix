@@ -134,6 +134,34 @@ By default, the Android build talks to `http://10.0.2.2:5001`, which is your com
 ANDROID_API_URL=http://192.168.1.10:5001 npm run build:android
 ```
 
+Debug builds may use plain `http://` for local testing. Release builds are HTTPS-only.
+
+### Releasing to Google Play
+
+**1. Host the backend on HTTPS.** The release app only talks to an `https://` server (for example Render, Railway or Fly.io). Set the same environment variables there as in `backend/.env`.
+
+**2. Create an upload key (once).** Run this inside `frontend/android`. `keytool` comes with Java and Android Studio:
+
+```bash
+keytool -genkeypair -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Then copy `keystore.properties.example` to `keystore.properties` and fill in the passwords you chose. Both files are git-ignored. **Back them up somewhere safe.** If you lose the key, updating the app becomes very difficult.
+
+**3. Build the signed app bundle.**
+
+```bash
+# macOS / Linux / Git Bash
+ANDROID_API_URL=https://api.your-domain.com npm run build:android:release
+
+# Windows PowerShell
+$env:ANDROID_API_URL="https://api.your-domain.com"; npm run build:android:release
+```
+
+This creates `frontend/android/app/build/outputs/bundle/release/app-release.aab`. Upload it in the Play Console. Before each new upload, raise `versionCode` in `frontend/android/app/build.gradle` by 1.
+
+**4. Play Console links.** Privacy policy: `https://<your-site>/privacy`. Account deletion (Data safety): `https://<your-site>/delete-account`.
+
 ---
 
 ## 🔌 API Overview
@@ -153,6 +181,10 @@ ANDROID_API_URL=http://192.168.1.10:5001 npm run build:android
 | GET | `/api/matches/received` | People who liked you |
 | GET | `/api/messages/conversations` | Your conversations |
 | GET | `/api/messages/unread/count` | Unread message count |
+| POST | `/api/messages/match/:matchId/photo` | Send a photo in a chat |
+| POST | `/api/safety/block/:userId` | Block someone |
+| POST | `/api/safety/report/:userId` | Report someone (also blocks) |
+| POST | `/api/account/delete` | Delete your account (requires password) |
 
 **Socket events:** `join_match`, `send_message`, `typing`, `mark_read`, `react_message`
 
@@ -166,6 +198,8 @@ ANDROID_API_URL=http://192.168.1.10:5001 npm run build:android
 | `npm run build` | Build both apps |
 | `npm run start` | Start the backend in production mode |
 | `npm run prisma:studio --workspace=backend` | Browse the database in Prisma Studio |
+| `npm run build:android --workspace=frontend` | Build and sync the Android app for testing |
+| `npm run build:android:release --workspace=frontend` | Build the signed Play Store bundle (needs `ANDROID_API_URL`) |
 
 ---
 

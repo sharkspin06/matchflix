@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "build:android": "node scripts/build-android.js",
+    "build:android:release": "node scripts/build-android.js --release",
     "open:android": "npx cap open android"
   },
   "dependencies": {

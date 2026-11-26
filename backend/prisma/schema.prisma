@@ -193,7 +193,7 @@ model Report {
   reportedId   String?
   reported     User?    @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: SetNull)
   reportedName String?
-  reason       String   // fake, inappropriate, harassment, scam, underage, other
+  reason       String   // child_safety, fake, inappropriate, harassment, scam, underage, other
   details      String?
   evidence     Json?    // Recent messages between them at the time of the report
   status       String   @default("open") // open, reviewed, actioned

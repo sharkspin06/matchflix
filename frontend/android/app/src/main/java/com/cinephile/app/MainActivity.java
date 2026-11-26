@@ -1,4 +1,4 @@
-package com.matchflix.app;
+package com.cinephile.app;
 
 import com.getcapacitor.BridgeActivity;
 

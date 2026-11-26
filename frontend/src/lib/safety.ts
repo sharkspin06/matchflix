@@ -3,6 +3,7 @@ import { getMyUserId } from './seenMatches';
 import { socketClient } from './socket';
 
 export const REPORT_REASONS = [
+  { value: 'child_safety', label: 'Child safety concern (sexual content or contact involving a minor)' },
   { value: 'fake', label: 'Fake profile or scammer pretending to be someone' },
   { value: 'inappropriate', label: 'Inappropriate photos or messages' },
   { value: 'harassment', label: 'Harassment, threats or hate' },

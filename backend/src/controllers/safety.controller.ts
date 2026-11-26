@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 
 const prisma = new PrismaClient();
 
-export const REPORT_REASONS = ['fake', 'inappropriate', 'harassment', 'scam', 'underage', 'other'] as const;
+export const REPORT_REASONS = ['child_safety', 'fake', 'inappropriate', 'harassment', 'scam', 'underage', 'other'] as const;
 const MAX_DETAILS_LENGTH = 1000;
 // Most recent messages saved with a report, so it can still be reviewed after the chat is removed
 const EVIDENCE_MESSAGES = 50;
