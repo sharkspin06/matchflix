@@ -3,6 +3,7 @@ import { PrismaClient, Profile } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { distanceBetween } from '../utils/distance.util';
 import { toPublicProfile } from '../utils/location.util';
+import { blockedUserIds, isBlockedBetween } from './safety.controller';
 
 const prisma = new PrismaClient();
 
@@ -117,11 +118,14 @@ export const discoverUsers = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Get users that current user has already interacted with
-    const interactedUserIds = await getInteractedUserIds(currentUserId);
+    // Leave out people already liked/passed, and anyone blocked either way
+    const [interactedUserIds, blockedIds] = await Promise.all([
+      getInteractedUserIds(currentUserId),
+      blockedUserIds(currentUserId),
+    ]);
 
     // Fetch potential matches
-    const potentialMatches = await fetchPotentialMatches(currentUserId, interactedUserIds);
+    const potentialMatches = await fetchPotentialMatches(currentUserId, [...interactedUserIds, ...blockedIds]);
 
     // Calculate match scores and distances for each profile
     const usersWithScores: ProfileWithScore[] = potentialMatches.map((profile) => {
@@ -181,9 +185,10 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
     }
 
     // Fetch user profile
-    const profile = await prisma.profile.findUnique({
-      where: { userId: id },
-    });
+    // Blocked either way: behave as if the profile doesn't exist
+    const profile = (await isBlockedBetween(req.userId!, id))
+      ? null
+      : await prisma.profile.findUnique({ where: { userId: id } });
 
     if (!profile) {
       return res.status(404).json({ 

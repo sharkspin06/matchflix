@@ -8,6 +8,8 @@ import profileRoutes from './routes/profile.routes';
 import userRoutes from './routes/user.routes';
 import matchRoutes from './routes/match.routes';
 import messageRoutes from './routes/message.routes';
+import safetyRoutes from './routes/safety.routes';
+import accountRoutes from './routes/account.routes';
 import passRoutes from './routes/pass.routes';
 import { initializeSocket } from './socket/socket';
 
@@ -57,6 +59,8 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/likes', matchRoutes); // Also mount match routes at /api/likes for convenience
 app.use('/api/passes', passRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/safety', safetyRoutes);
+app.use('/api/account', accountRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

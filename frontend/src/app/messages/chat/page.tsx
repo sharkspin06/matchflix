@@ -3,8 +3,9 @@
 import { API_URL } from '@/lib/config';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send, Heart, Users, MessageCircle, Check, CheckCheck, MoreVertical, UserX, Home, Smile, ImagePlus, X } from 'lucide-react';
+import { Send, Heart, Users, MessageCircle, Check, CheckCheck, MoreVertical, UserX, Home, Smile, ImagePlus, X, Flag, Ban } from 'lucide-react';
 import PhotoViewer from '@/components/PhotoViewer';
+import SafetyDialog, { type SafetyMode } from '@/components/SafetyDialog';
 import BackButton from '@/components/BackButton';
 import ProfileSheet, { SheetProfile } from '@/components/ProfileSheet';
 import { socketClient } from '@/lib/socket';
@@ -99,6 +100,7 @@ function ChatPageContent() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTap = useRef<{ id: string; time: number } | null>(null);
   const [showUnmatchModal, setShowUnmatchModal] = useState(false);
+  const [safetyMode, setSafetyMode] = useState<SafetyMode | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -759,6 +761,30 @@ function ChatPageContent() {
                     <UserX className="w-4 h-4" />
                     Unmatch
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setSafetyMode('report');
+                    }}
+                    className={`w-full px-3 py-2.5 text-left flex items-center gap-2.5 text-sm font-medium rounded-xl ${
+                      isDarkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Flag className="w-4 h-4" />
+                    Report
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setSafetyMode('block');
+                    }}
+                    className={`w-full px-3 py-2.5 text-left flex items-center gap-2.5 text-sm font-medium rounded-xl ${
+                      isDarkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Ban className="w-4 h-4" />
+                    Block
+                  </button>
                 </div>
               )}
             </div>
@@ -1094,6 +1120,15 @@ function ChatPageContent() {
         </form>
       </div>
 
+      {/* Report / block from the menu; afterwards the chat is gone, so go back to Messages */}
+      <SafetyDialog
+        mode={safetyMode}
+        userId={userId}
+        name={userProfile?.name || 'them'}
+        onClose={() => setSafetyMode(null)}
+        onDone={() => router.push('/messages')}
+      />
+
       {/* A chat photo opened full screen */}
       <PhotoViewer
         photos={viewerPhoto ? [viewerPhoto] : []}
@@ -1108,6 +1143,7 @@ function ChatPageContent() {
         profile={fullProfile}
         isDarkMode={isDarkMode}
         onClose={() => setShowProfile(false)}
+        safety={userId ? { userId, onRemoved: () => router.push('/messages') } : undefined}
         footer={
           <button
             onClick={() => setShowProfile(false)}

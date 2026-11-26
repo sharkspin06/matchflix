@@ -87,8 +87,9 @@ const sections: LegalSection[] = [
         <ul>
           <li><strong>Edit your profile</strong> at any time from your profile page.</li>
           <li><strong>Location and notifications</strong> are optional; you can turn them off in your browser or device settings.</li>
-          <li><strong>Unmatch</strong> anyone to stop them messaging you.</li>
-          <li><strong>Access or delete your data:</strong> email {LEGAL.contactEmail} from the address you signed up with to get a copy of your information or have your account deleted.</li>
+          <li><strong>Unmatch, block or report</strong> anyone. Blocking removes your match and messages, and you won&apos;t see each other again. Reports are reviewed by us, and the person isn&apos;t told who reported them.</li>
+          <li><strong>Delete your account</strong> at any time in the app (Home → Edit profile → Delete account) or at <Link href="/delete-account" className="underline underline-offset-2">our account deletion page</Link>.</li>
+          <li><strong>Get a copy of your data:</strong> email {LEGAL.contactEmail} from the address you signed up with.</li>
         </ul>
         <p>Depending on where you live, you may have other rights, such as to correct your data or to complain to your local data protection authority.</p>
       </>

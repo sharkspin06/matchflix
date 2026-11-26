@@ -104,11 +104,16 @@ export const guidelineSections: LegalSection[] = [
     body: (
       <>
         <p>
-          If someone breaks these guidelines or makes you feel unsafe, tell us at{' '}
+          If someone breaks these guidelines or makes you feel unsafe, tap <strong>Report</strong> at the bottom of
+          their profile or in the ⋮ menu of your chat. Reporting also blocks them, and they won&apos;t know it was
+          you. You can also <strong>Block</strong> someone without reporting them.
+        </p>
+        <p>
+          For anything else, email{' '}
           <a href={`mailto:${LEGAL.contactEmail}`} className="font-semibold underline underline-offset-2">
             {LEGAL.contactEmail}
           </a>
-          . Include their name and what happened. Screenshots help.
+          .
         </p>
         <p>
           <strong>If you are in danger, contact your local emergency services first.</strong>

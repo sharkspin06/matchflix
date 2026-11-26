@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Heart, MapPin, ExternalLink, Film, ChevronDown, Moon, GraduationCap, PawPrint, Wine, Cigarette, Navigation, Target, Home,
+  Heart, MapPin, ExternalLink, Film, ChevronDown, Moon, GraduationCap, PawPrint, Wine, Cigarette, Navigation, Target, Home, Flag, Ban,
 } from 'lucide-react';
 import PhotoCarousel from '@/components/PhotoCarousel';
+import SafetyDialog, { type SafetyMode } from '@/components/SafetyDialog';
 
 /** Full profile shown as a sheet: used on Discover (with Pass/Like) and in Chat (view only) */
 export interface SheetProfile {
@@ -38,15 +39,20 @@ interface ProfileSheetProps {
   onClose: () => void;
   /** Something to pin at the bottom (e.g. a "Back to chat" button) */
   footer?: React.ReactNode;
+  /** Shows Report / Block for this person; onRemoved runs after either succeeds */
+  safety?: { userId: string; onRemoved: () => void };
 }
 
-export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, onClose, footer }: ProfileSheetProps) {
+export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, onClose, footer, safety }: ProfileSheetProps) {
+  const [safetyMode, setSafetyMode] = useState<SafetyMode | null>(null);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    // While the report/block dialog is open, Escape belongs to it
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !safetyMode && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, safetyMode]);
 
   if (!open || !maybeProfile) return null;
   const profile: any = maybeProfile;
@@ -225,8 +231,35 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
                 </div>
               </section>
             )}
+
+            {/* Safety: quiet, but always at the end of someone's profile */}
+            {safety && (
+              <div className={`pt-2 flex items-center justify-center gap-6 text-sm font-medium ${t.muted}`}>
+                <button onClick={() => setSafetyMode('report')} className="inline-flex items-center gap-1.5 py-2 hover:underline underline-offset-2">
+                  <Flag className="w-4 h-4" />
+                  Report {profile.name}
+                </button>
+                <button onClick={() => setSafetyMode('block')} className="inline-flex items-center gap-1.5 py-2 hover:underline underline-offset-2">
+                  <Ban className="w-4 h-4" />
+                  Block
+                </button>
+              </div>
+            )}
           </div>
         </div>
+
+        {safety && (
+          <SafetyDialog
+            mode={safetyMode}
+            userId={safety.userId}
+            name={profile.name}
+            onClose={() => setSafetyMode(null)}
+            onDone={() => {
+              onClose();
+              safety.onRemoved();
+            }}
+          />
+        )}
 
         {footer && (
           <div className={`absolute inset-x-0 bottom-0 px-6 pt-4 pb-6 border-t backdrop-blur-lg ${t.bar}`}>{footer}</div>

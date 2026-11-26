@@ -3,7 +3,7 @@
 import { API_URL } from '@/lib/config';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, MapPin, Briefcase, Edit2, Camera, Heart, Film, LogOut, Home as HomeIcon, Zap, MessageCircle, Users, Sparkles, UserPlus, Smile, HeartHandshake, Globe, Coffee, PawPrint, Wine, Cigarette, Moon, GraduationCap, CalendarRange, Navigation, SlidersHorizontal, UserRound, ChevronRight, Check, Clapperboard, Lock } from 'lucide-react';
+import { User, MapPin, Briefcase, Edit2, Camera, Heart, Film, LogOut, Home as HomeIcon, Zap, MessageCircle, Users, Sparkles, UserPlus, Smile, HeartHandshake, Globe, Coffee, PawPrint, Wine, Cigarette, Moon, GraduationCap, CalendarRange, Navigation, SlidersHorizontal, UserRound, ChevronRight, Check, Clapperboard, Lock, Trash2 } from 'lucide-react';
 import SelectMenu from '@/components/SelectMenu';
 import BirthdayInput from '@/components/BirthdayInput';
 import OptionSheet from '@/components/OptionSheet';
@@ -53,6 +53,8 @@ import { notificationService } from '@/lib/notifications';
 import { requestLocation } from '@/lib/permissions';
 import PermissionSettingsDialog from '@/components/PermissionSettingsDialog';
 import PhotoViewer from '@/components/PhotoViewer';
+import DeleteAccountDialog from '@/components/DeleteAccountDialog';
+import { clearLocalSession } from '@/lib/safety';
 
 export default function HomePage() {
   const router = useRouter();
@@ -99,6 +101,7 @@ export default function HomePage() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [locationHelp, setLocationHelp] = useState<'blocked' | 'unavailable' | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [selectedProfilePic, setSelectedProfilePic] = useState<File | null>(null);
   const [filmSearch, setFilmSearch] = useState('');
   const [filmResults, setFilmResults] = useState<any[]>([]);
@@ -1267,6 +1270,22 @@ export default function HomePage() {
                 </div>
               </div>
 
+              {/* Account: permanent deletion, kept apart at the very end */}
+              <div className="pt-6 border-t border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                <p className="text-sm text-gray-500 mb-3">
+                  Deleting your account removes your profile, photos, likes, matches and messages for good.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteAccount(true)}
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-semibold text-red-600 ring-1 ring-inset ring-red-200 hover:bg-red-50 transition-colors duration-200"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete account
+                </button>
+              </div>
+
             </div>
 
             {/* Save bar */}
@@ -1349,6 +1368,15 @@ export default function HomePage() {
         onCancel={() => setShowLogoutModal(false)}
         onConfirm={confirmLogout}
         isDarkMode={isDarkMode}
+      />
+
+      <DeleteAccountDialog
+        open={showDeleteAccount}
+        onClose={() => setShowDeleteAccount(false)}
+        onDeleted={() => {
+          clearLocalSession();
+          router.replace('/delete-account?deleted=1');
+        }}
       />
 
       {locationHelp && (

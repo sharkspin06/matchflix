@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient, Like, Match } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { publicUserSelect } from '../utils/location.util';
+import { blockedUserIds, isBlockedBetween } from './safety.controller';
 
 const prisma = new PrismaClient();
 
@@ -68,6 +69,9 @@ export const likeUser = async (req: AuthRequest, res: Response) => {
 
     if (currentUserId === targetUserId) {
       return res.status(400).json({ error: 'Cannot like yourself' });
+    }
+    if (await isBlockedBetween(currentUserId, targetUserId)) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
     // Create like
@@ -225,10 +229,15 @@ export const sendLike = async (req: AuthRequest, res: Response) => {
 
     // Prevent self-liking
     if (currentUserId === likedUserId) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid operation',
-        message: 'Cannot like yourself' 
+        message: 'Cannot like yourself'
       });
+    }
+
+    // Blocked either way: no likes, so no match can form
+    if (await isBlockedBetween(currentUserId, likedUserId)) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
     // Check if like already exists
@@ -295,11 +304,13 @@ export const getReceivedLikes = async (req: AuthRequest, res: Response) => {
     console.log('📥 Getting received likes for user:', currentUserId);
 
     // People you've already answered (liked back = a match, or passed) leave the Likes list
-    const [likedBack, passed] = await Promise.all([
+    const [likedBack, passed, blockedIds] = await Promise.all([
       prisma.like.findMany({ where: { fromUserId: currentUserId }, select: { toUserId: true } }),
       prisma.pass.findMany({ where: { fromUserId: currentUserId }, select: { toUserId: true } }),
+      blockedUserIds(currentUserId),
     ]);
-    const answeredIds = [...likedBack, ...passed].map((r) => r.toUserId);
+    // Blocked people never show up here either
+    const answeredIds = [...likedBack, ...passed].map((r) => r.toUserId).concat(blockedIds);
 
     // Get all likes where current user is the recipient and hasn't responded yet
     const likes = await prisma.like.findMany({

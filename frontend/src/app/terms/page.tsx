@@ -89,7 +89,7 @@ const sections: LegalSection[] = [
     title: 'Reporting and removal',
     body: (
       <>
-        <p>If someone breaks these terms or makes you feel unsafe, contact us at {LEGAL.contactEmail}. If you are in danger, contact your local emergency services first.</p>
+        <p>If someone breaks these terms or makes you feel unsafe, use <strong>Report</strong> or <strong>Block</strong> on their profile or in your chat with them, or contact us at {LEGAL.contactEmail}. Reporting also blocks them, and they aren&apos;t told who reported them. If you are in danger, contact your local emergency services first.</p>
         <p>We may warn, suspend or remove any account that breaks these terms or puts other users at risk, with or without notice.</p>
       </>
     ),
@@ -98,7 +98,7 @@ const sections: LegalSection[] = [
     id: 'ending',
     title: 'Ending your account',
     body: (
-      <p>You can stop using the Service at any time. To have your account and profile deleted, email us at {LEGAL.contactEmail} from the address you signed up with. We may also close accounts that have been inactive for a long time.</p>
+      <p>You can stop using the Service and delete your account at any time, in the app (Home → Edit profile → Delete account) or at <Link href="/delete-account" className="underline underline-offset-2">our account deletion page</Link>. If you can&apos;t sign in, email us at {LEGAL.contactEmail} from the address you signed up with. We may also close accounts that have been inactive for a long time.</p>
     ),
   },
   {

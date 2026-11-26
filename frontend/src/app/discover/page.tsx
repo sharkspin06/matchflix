@@ -323,6 +323,19 @@ export default function DiscoverPage() {
     fetchLikedYouCount();
   };
 
+  // Reported or blocked: drop their card; the next profile eases in, or new ones load if that was the last
+  const removeProfile = (userId: string) => {
+    setProfiles((prev) => {
+      const next = prev.filter((p) => p.userId !== userId);
+      if (currentProfile >= next.length) {
+        setCurrentProfile(0);
+        if (next.length === 0) fetchProfiles();
+      }
+      return next;
+    });
+    setEntering(true);
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     // Only open modal if user didn't drag
     if (!hasDragged) {
@@ -763,6 +776,7 @@ export default function DiscoverPage() {
         profile={profile}
         isDarkMode={isDarkMode}
         onClose={() => setShowProfileDetails(false)}
+        safety={profile?.userId ? { userId: profile.userId, onRemoved: () => removeProfile(profile.userId) } : undefined}
       />
 
       {/* Logout confirmation */}
