@@ -168,7 +168,7 @@ export default function MessagesPage() {
             userId: conv.user.id,
             name: conv.user.profile?.name || 'Unknown',
             avatar: avatarUrl,
-            lastMessage: conv.lastMessage?.content || 'No messages yet',
+            lastMessage: conv.lastMessage ? (conv.lastMessage.content || (conv.lastMessage.imageUrl ? '📷 Photo' : '')) || 'No messages yet' : 'No messages yet',
             timestamp: conv.lastMessage?.createdAt || conv.createdAt,
             unreadCount: 0,
             isOnline: false,
@@ -203,7 +203,7 @@ export default function MessagesPage() {
         const updated = [...prevMessages];
         updated[existingIndex] = {
           ...updated[existingIndex],
-          lastMessage: message.content,
+          lastMessage: message.content || (message.imageUrl ? '📷 Photo' : ''),
           timestamp: message.createdAt,
         };
         

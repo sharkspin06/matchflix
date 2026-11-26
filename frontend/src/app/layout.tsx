@@ -11,7 +11,7 @@ const inter = Inter({ subsets: ['latin'] });
 // The font is configured with CSS variables in globals.css
 
 export const metadata: Metadata = {
-  title: 'MatchFlix - Find Your Perfect Match',
+  title: 'Cinephile',
   description: 'A modern dating app to connect with people who share your interests',
 };
 

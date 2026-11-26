@@ -35,7 +35,7 @@ export const register = async (req: Request, res: Response) => {
     }
     const age = ageFromBirthday(birthday);
     if (age < MIN_DATING_AGE) {
-      return res.status(400).json({ error: `You must be at least ${MIN_DATING_AGE} to use MatchFlix` });
+      return res.status(400).json({ error: `You must be at least ${MIN_DATING_AGE} to use Cinephile` });
     }
     if (age > 100) {
       return res.status(400).json({ error: 'Please enter a valid birthday' });

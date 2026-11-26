@@ -30,6 +30,8 @@ export class NotificationService {
       return false;
     }
 
+    // Re-read every time: the person may have changed it in browser/site settings since load
+    this.checkPermission();
     if (this.permission === 'granted') {
       return true;
     }
@@ -48,6 +50,7 @@ export class NotificationService {
       return;
     }
 
+    this.checkPermission();
     if (this.permission !== 'granted') {
       console.log('Notification permission not granted');
       return;

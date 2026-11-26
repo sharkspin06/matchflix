@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import {
-  X, Heart, MapPin, Film, ChevronDown, Moon, GraduationCap, PawPrint, Wine, Cigarette, Navigation, Target, Home,
+  Heart, MapPin, ExternalLink, Film, ChevronDown, Moon, GraduationCap, PawPrint, Wine, Cigarette, Navigation, Target, Home,
 } from 'lucide-react';
 import PhotoCarousel from '@/components/PhotoCarousel';
 
@@ -15,6 +15,8 @@ export interface SheetProfile {
   location?: string | null;
   distance?: string;
   bio?: string | null;
+  /** Username only; the link is always built to letterboxd.com */
+  letterboxdUsername?: string | null;
   topFilms?: { poster: string }[];
   favoriteGenres?: string[];
   zodiac?: string | null;
@@ -34,14 +36,11 @@ interface ProfileSheetProps {
   profile: SheetProfile | null;
   isDarkMode: boolean;
   onClose: () => void;
-  /** Discover: show Pass / Like buttons */
-  onPass?: () => void;
-  onLike?: () => void;
-  /** Anything else to pin at the bottom instead (e.g. a "Back to chat" button) */
+  /** Something to pin at the bottom (e.g. a "Back to chat" button) */
   footer?: React.ReactNode;
 }
 
-export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, onClose, onPass, onLike, footer }: ProfileSheetProps) {
+export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, onClose, footer }: ProfileSheetProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -53,8 +52,13 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
   const profile: any = maybeProfile;
 
   const t = isDarkMode
-    ? { sheet: 'bg-gray-900', heading: 'text-gray-400', text: 'text-gray-200', muted: 'text-gray-400', chip: 'bg-gray-800 text-gray-200 ring-gray-700', row: 'bg-gray-800/60', divider: 'border-gray-800', bar: 'bg-gray-900/90 border-gray-800' }
-    : { sheet: 'bg-white', heading: 'text-gray-500', text: 'text-gray-900', muted: 'text-gray-500', chip: 'bg-white text-gray-800 ring-gray-200', row: 'bg-gray-50', divider: 'border-gray-100', bar: 'bg-white/90 border-gray-100' };
+    ? { sheet: 'bg-gray-900', heading: 'text-gray-400', text: 'text-gray-200', muted: 'text-gray-400', divider: 'border-gray-800', bar: 'bg-gray-900/90 border-gray-800' }
+    : { sheet: 'bg-white', heading: 'text-gray-500', text: 'text-gray-900', muted: 'text-gray-500', divider: 'border-gray-100', bar: 'bg-white/90 border-gray-100' };
+  // Shared dark gray look for the chips, the details panel and the Letterboxd button
+  const box = 'bg-[#1f2937] text-white';
+  const boxHover = isDarkMode ? 'hover:bg-[#374151]' : 'hover:bg-[#111827]';
+  const boxMuted = 'text-gray-300';
+  const boxDivider = 'divide-gray-700';
   const basics = [
     { value: profile.zodiac, icon: Moon },
     { value: profile.education, icon: GraduationCap },
@@ -118,7 +122,7 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
             </div>
           </div>
 
-          <div className={`px-6 pt-6 ${onPass || onLike || footer ? 'pb-32' : 'pb-10'} space-y-7`}>
+          <div className={`px-6 pt-6 ${footer ? 'pb-32' : 'pb-10'} space-y-7`}>
             {/* About */}
             {profile.bio && (
               <section>
@@ -154,13 +158,32 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
               </section>
             )}
 
+            {/* Letterboxd: opens their profile in the browser */}
+            {profile.letterboxdUsername && (
+              <a
+                href={`https://letterboxd.com/${encodeURIComponent(profile.letterboxdUsername)}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center justify-between gap-3 w-full h-12 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ease-out active:scale-[0.98] ${box} ${boxHover}`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <Film className="w-4 h-4 flex-none" />
+                  <span className="truncate">View their Letterboxd</span>
+                </span>
+                <span className="flex items-center gap-1.5 min-w-0 opacity-70 font-medium">
+                  <span className="truncate">@{profile.letterboxdUsername}</span>
+                  <ExternalLink className="w-4 h-4 flex-none" />
+                </span>
+              </a>
+            )}
+
             {/* Genres */}
             {profile.favoriteGenres?.length > 0 && (
               <section>
                 <h3 className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-3 ${t.heading}`}>Favorite genres</h3>
                 <div className="flex flex-wrap gap-2">
                   {profile.favoriteGenres.map((genre: string, index: number) => (
-                    <span key={index} className={`px-3.5 py-1.5 rounded-full text-sm font-medium ring-1 ring-inset ${t.chip}`}>
+                    <span key={index} className={`px-3.5 py-1.5 rounded-xl text-sm font-medium ${box}`}>
                       {genre}
                     </span>
                   ))}
@@ -174,8 +197,8 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
                 <h3 className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-3 ${t.heading}`}>Basics</h3>
                 <div className="flex flex-wrap gap-2">
                   {basics.map(({ value, icon: Icon }) => (
-                    <span key={value} className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium ring-1 ring-inset ${t.chip}`}>
-                      <Icon className={`w-4 h-4 ${t.muted}`} />
+                    <span key={value} className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm font-medium ${box}`}>
+                      <Icon className={`w-4 h-4 ${boxMuted}`} />
                       {value}
                     </span>
                   ))}
@@ -187,16 +210,16 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
             {(details.length > 0 || profile.location_detail || profile.lives_in) && (
               <section>
                 <h3 className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-3 ${t.heading}`}>More about {profile.name}</h3>
-                <div className={`rounded-2xl overflow-hidden divide-y ${t.row} ${isDarkMode ? 'divide-gray-700/60' : 'divide-gray-200/70'}`}>
+                <div className={`rounded-xl overflow-hidden divide-y ${box} ${boxDivider}`}>
                   {[
                     ...details,
                     ...(profile.location_detail ? [{ label: 'Location', value: profile.location_detail, icon: MapPin }] : []),
                     ...(profile.lives_in ? [{ label: 'Lives in', value: profile.lives_in, icon: Home }] : []),
                   ].map(({ label, value, icon: Icon }) => (
                     <div key={label} className="flex items-center gap-3 px-4 py-3.5">
-                      <Icon className={`w-5 h-5 flex-shrink-0 ${t.muted}`} />
-                      <span className={`text-sm ${t.muted}`}>{label}</span>
-                      <span className={`ml-auto text-sm font-semibold capitalize text-right ${t.text}`}>{value}</span>
+                      <Icon className={`w-5 h-5 flex-shrink-0 ${boxMuted}`} />
+                      <span className={`text-sm ${boxMuted}`}>{label}</span>
+                      <span className="ml-auto text-sm font-semibold capitalize text-right">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -205,27 +228,9 @@ export default function ProfileSheet({ open, profile: maybeProfile, isDarkMode, 
           </div>
         </div>
 
-        {/* Actions */}
-        {(onPass || onLike) ? (
-        <div className={`absolute inset-x-0 bottom-0 px-6 pt-4 pb-6 border-t backdrop-blur-lg flex items-center justify-center gap-5 ${t.bar}`}>
-          <button
-            onClick={() => { onClose(); onPass?.(); }}
-            aria-label="Pass"
-            className={`group w-14 h-14 rounded-full flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(0,0,0,0.25)] transition-all duration-200 hover:scale-105 active:scale-90 ${isDarkMode ? 'bg-gray-800' : 'bg-white ring-1 ring-gray-100'}`}
-          >
-            <X className="w-6 h-6 text-gray-500 group-hover:text-red-500 transition-all duration-200 ease-out" strokeWidth={3} />
-          </button>
-          <button
-            onClick={() => { onClose(); onLike?.(); }}
-            aria-label="Like"
-            className="w-16 h-16 rounded-full bg-[#1f2937] hover:bg-[#111827] flex items-center justify-center shadow-[0_12px_28px_-8px_rgba(17,24,39,0.7)] transition-all duration-200 hover:scale-105 active:scale-90"
-          >
-            <Heart className="w-8 h-8 text-white" fill="white" />
-          </button>
-        </div>
-        ) : footer ? (
+        {footer && (
           <div className={`absolute inset-x-0 bottom-0 px-6 pt-4 pb-6 border-t backdrop-blur-lg ${t.bar}`}>{footer}</div>
-        ) : null}
+        )}
       </div>
     </div>
   );

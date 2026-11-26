@@ -1,4 +1,4 @@
-# 🎬 MatchFlix
+# 🎬 Cinephile
 
 **A dating app for film lovers.** Show off your top four films, swipe through people nearby, and when you both like each other, start talking about movies in real time.
 

@@ -1,6 +1,11 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const { PHASE_DEVELOPMENT_SERVER } = require('next/constants');
+
+/** @type {(phase: string) => import('next').NextConfig} */
+const nextConfig = (phase) => ({
   output: 'export',
+  // `next dev` gets its own folder so running `next build` (e.g. build:android)
+  // doesn't overwrite the files a running dev server depends on.
+  distDir: phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next',
   trailingSlash: true,
   images: {
     unoptimized: true,
@@ -14,6 +19,6 @@ const nextConfig = {
       },
     ],
   },
-}
+})
 
 module.exports = nextConfig

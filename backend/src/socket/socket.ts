@@ -4,6 +4,9 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Longest chat message accepted (characters, after trimming)
+const MAX_MESSAGE_LENGTH = 2000;
+
 interface AuthSocket extends Socket {
   userId?: string;
 }
@@ -54,10 +57,27 @@ export const initializeSocket = (io: Server) => {
       }
     });
 
-    // Send message
-    socket.on('send_message', async (data: { matchId: string; content: string }) => {
+    // Send message. The client passes a temporary `clientId` and an acknowledgement callback:
+    // the saved message is sent back through the callback (so the sender's "sending…" bubble
+    // can be swapped for the real one) and broadcast to the room with the same clientId.
+    socket.on('send_message', async (
+      data: { matchId: string; content: string; clientId?: string },
+      ack?: (response: { ok: true; message: unknown } | { ok: false; error: string }) => void
+    ) => {
+      const reply = typeof ack === 'function' ? ack : () => {};
       try {
-        const { matchId, content } = data;
+        const matchId = data?.matchId;
+        const content = typeof data?.content === 'string' ? data.content.trim() : '';
+        const clientId = typeof data?.clientId === 'string' ? data.clientId.slice(0, 64) : undefined;
+
+        if (!matchId || !content) {
+          reply({ ok: false, error: 'Message is empty' });
+          return;
+        }
+        if (content.length > MAX_MESSAGE_LENGTH) {
+          reply({ ok: false, error: `Messages can be up to ${MAX_MESSAGE_LENGTH} characters` });
+          return;
+        }
 
         // Verify user is part of this match
         const match = await prisma.match.findUnique({
@@ -69,6 +89,7 @@ export const initializeSocket = (io: Server) => {
           (match.user1Id !== socket.userId && match.user2Id !== socket.userId)
         ) {
           socket.emit('error', { message: 'Unauthorized' });
+          reply({ ok: false, error: 'Unauthorized' });
           return;
         }
 
@@ -82,7 +103,8 @@ export const initializeSocket = (io: Server) => {
           include: {
             reactions: { select: { userId: true, emoji: true } },
             sender: {
-              include: {
+              select: {
+                id: true,
                 profile: {
                   select: {
                     name: true,
@@ -94,8 +116,11 @@ export const initializeSocket = (io: Server) => {
           },
         });
 
-        // Emit to match room
-        io.to(`match:${matchId}`).emit('new_message', message);
+        const payload = { ...message, clientId };
+
+        // Confirm to the sender first, then deliver to everyone in the chat
+        reply({ ok: true, message: payload });
+        io.to(`match:${matchId}`).emit('new_message', payload);
 
         // Notify the other user
         const otherUserId =
@@ -103,11 +128,12 @@ export const initializeSocket = (io: Server) => {
         io.to(`user:${otherUserId}`).emit('notification', {
           type: 'new_message',
           matchId,
-          message,
+          message: payload,
         });
       } catch (error) {
         console.error('Send message error:', error);
         socket.emit('error', { message: 'Failed to send message' });
+        reply({ ok: false, error: 'Failed to send message' });
       }
     });
 

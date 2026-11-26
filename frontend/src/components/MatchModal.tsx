@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Heart, MessageCircle } from 'lucide-react';
+import { Film, Heart } from 'lucide-react';
 
 interface MatchModalProps {
   open: boolean;
@@ -11,13 +11,13 @@ interface MatchModalProps {
 
 const FALLBACK = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop';
 
-// A few hearts drifting up behind the photos
-const FLOATING_HEARTS = [
-  { left: '12%', delay: '0s', size: 18, duration: '4.5s' },
-  { left: '28%', delay: '1.2s', size: 12, duration: '5.5s' },
-  { left: '50%', delay: '0.6s', size: 22, duration: '5s' },
-  { left: '70%', delay: '1.8s', size: 14, duration: '4.8s' },
-  { left: '86%', delay: '0.3s', size: 16, duration: '5.2s' },
+// A few film icons drifting up behind the photos (a touch larger than hearts were, so the frames read clearly)
+const FLOATING_FILMS = [
+  { left: '12%', delay: '0s', size: 22, duration: '4.5s' },
+  { left: '28%', delay: '1.2s', size: 16, duration: '5.5s' },
+  { left: '50%', delay: '0.6s', size: 26, duration: '5s' },
+  { left: '70%', delay: '1.8s', size: 18, duration: '4.8s' },
+  { left: '86%', delay: '0.3s', size: 20, duration: '5.2s' },
 ];
 
 /** Full-screen "It's a match!" celebration after liking someone who liked you back */
@@ -40,21 +40,20 @@ export default function MatchModal({ open, myImage, them, onClose, onMessage }: 
       className="fixed inset-0 z-[80] flex flex-col items-center justify-center px-6 bg-[#0b0f17]/95 backdrop-blur-md animate-fadeIn overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Floating hearts */}
+      {/* Floating film icons (outline only: a filled film icon reads as a solid block) */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        {FLOATING_HEARTS.map((h, i) => (
-          <Heart
+        {FLOATING_FILMS.map((f, i) => (
+          <Film
             key={i}
             className="absolute bottom-[-40px] text-white/15 animate-floatUp"
-            style={{ left: h.left, width: h.size, height: h.size, animationDelay: h.delay, animationDuration: h.duration }}
-            fill="currentColor"
+            style={{ left: f.left, width: f.size, height: f.size, animationDelay: f.delay, animationDuration: f.duration }}
+            strokeWidth={1.75}
           />
         ))}
       </div>
 
       <div className="relative w-full max-w-sm flex flex-col items-center text-center">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/50 animate-fadeIn">MatchFlix</p>
-        <h2 id="match-title" className="mt-2 text-[44px] leading-none font-extrabold tracking-tight text-white animate-scaleIn">
+        <h2 id="match-title" className="text-[44px] leading-none font-extrabold tracking-tight text-white animate-scaleIn">
           It&apos;s a match!
         </h2>
         <p className="mt-3 text-[15px] text-white/70">
@@ -84,23 +83,20 @@ export default function MatchModal({ open, myImage, them, onClose, onMessage }: 
           </span>
         </div>
 
-        <div className="w-full space-y-3">
+        <div className="w-full flex flex-col items-center gap-2">
           <button
             onClick={onMessage}
-            autoFocus
-            className="w-full py-3.5 rounded-full bg-white hover:bg-gray-100 text-gray-900 text-[15px] font-semibold inline-flex items-center justify-center gap-2"
+            className="w-full h-12 px-4 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-[15px] font-semibold truncate transition-colors duration-200"
           >
-            <MessageCircle className="w-5 h-5" />
             Say hi to {them.name}
           </button>
           <button
             onClick={onClose}
-            className="w-full py-3.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-[15px] font-semibold ring-1 ring-inset ring-white/20"
+            className="px-4 py-2.5 text-[15px] font-medium text-white/60 hover:text-white transition-colors duration-200"
           >
             Keep swiping
           </button>
         </div>
-        <p className="mt-5 text-xs text-white/40">Tip: ask about their top 4 films 🎬</p>
       </div>
     </div>
   );

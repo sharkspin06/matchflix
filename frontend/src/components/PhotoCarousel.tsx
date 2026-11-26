@@ -5,16 +5,26 @@ interface PhotoCarouselProps {
   photos: string[];
   alt: string;
   fallback: string;
+  /** Photo to show first (e.g. the one that was tapped to open a viewer) */
+  initialIndex?: number;
 }
 
 /**
  * Swipeable photo viewer: swipe sideways (or scroll on a trackpad), tap the
  * left/right side, or use the arrows on hover. Story-style bars show position.
  */
-export default function PhotoCarousel({ photos, alt, fallback }: PhotoCarouselProps) {
+export default function PhotoCarousel({ photos, alt, fallback, initialIndex = 0 }: PhotoCarouselProps) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(initialIndex);
   const list = photos.length > 0 ? photos : [fallback];
+
+  // Jump (without animating) to the starting photo once the track has a size
+  useEffect(() => {
+    const track = trackRef.current;
+    if (track && initialIndex > 0) track.scrollLeft = initialIndex * track.clientWidth;
+    // Only on mount: later changes come from the person swiping
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Follow the scroll position so the bars match whatever photo is showing
   useEffect(() => {

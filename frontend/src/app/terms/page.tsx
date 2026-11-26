@@ -18,7 +18,7 @@ const sections: LegalSection[] = [
   },
   {
     id: 'eligibility',
-    title: 'Who can use MatchFlix',
+    title: 'Who can use Cinephile',
     body: (
       <ul>
         <li>You must be <strong>at least 18 years old</strong>. We ask for your date of birth when you sign up and won&apos;t create an account for anyone younger.</li>

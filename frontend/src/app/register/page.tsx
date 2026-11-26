@@ -10,10 +10,13 @@ import { requestLocation, requestNotifications, UserLocation } from '@/lib/permi
 import ModernInput from '@/components/ModernInput';
 import BackButton from '@/components/BackButton';
 import Logo from '@/components/Logo';
+import Wordmark from '@/components/Wordmark';
 import BirthdayInput from '@/components/BirthdayInput';
 import PasswordStrength, { isStrongPassword } from '@/components/PasswordStrength';
 import { defaultAgeRange } from '@/lib/utils';
 import { GENDER_OPTIONS, ORIENTATION_OPTIONS, GENDER_HELP, ORIENTATION_HELP } from '@/lib/identity';
+import PermissionSettingsDialog, { type PermissionKind } from '@/components/PermissionSettingsDialog';
+import GuidelinesModal from '@/components/GuidelinesModal';
 
 const STEPS = {
   ACCOUNT: 1,
@@ -92,7 +95,6 @@ function StepCard({ title, subtitle, error, onBack, children }: {
       <BackButton onClick={onBack} label="Back" />
 
       <div className="text-center mb-8">
-        <Logo className="h-14 sm:h-16 mx-auto mb-3" />
         <h2 className="text-2xl font-semibold text-gray-800 mb-2">{title}</h2>
         {subtitle && <p className="text-gray-600 text-sm">{subtitle}</p>}
       </div>
@@ -140,6 +142,11 @@ export default function RegisterPage() {
     interestedIn: '',
   });
   const [location, setLocation] = useState<UserLocation | null>(null);
+  const [showGuidelines, setShowGuidelines] = useState(false);
+  const [permissionHelp, setPermissionHelp] = useState<{
+    kind: PermissionKind;
+    outcome: 'blocked' | 'unavailable';
+  } | null>(null);
   const [photos, setPhotos] = useState<(File | null)[]>([null, null]);
   const [previewUrls, setPreviewUrls] = useState<(string | null)[]>([null, null]);
   const [topFilms, setTopFilms] = useState<any[]>([]);
@@ -261,25 +268,42 @@ export default function RegisterPage() {
     }
   };
 
+  // Blocked or switched-off permissions get a popup explaining how to turn them on in settings.
+  // A prompt that was just closed leaves the person on the step to try again or choose "Not now".
   const handleEnableLocation = async () => {
     setRequestingPermission(true);
-    setLocation(await requestLocation());
+    const { location: result, outcome } = await requestLocation();
     setRequestingPermission(false);
-    goToStep(STEPS.NOTIFICATIONS);
+    setLocation(result);
+    if (outcome === 'blocked' || outcome === 'unavailable') {
+      setPermissionHelp({ kind: 'location', outcome });
+      return;
+    }
+    if (outcome === 'granted') {
+      setPermissionHelp(null);
+      goToStep(STEPS.NOTIFICATIONS);
+    }
   };
 
   const handleEnableNotifications = async () => {
     setRequestingPermission(true);
-    await requestNotifications();
+    const outcome = await requestNotifications();
     setRequestingPermission(false);
-    goToStep(STEPS.NAME);
+    if (outcome === 'blocked' || outcome === 'unavailable') {
+      setPermissionHelp({ kind: 'notifications', outcome });
+      return;
+    }
+    if (outcome === 'granted') {
+      setPermissionHelp(null);
+      goToStep(STEPS.NAME);
+    }
   };
 
   const getBirthdayError = () => {
     if (!formData.birthday) return 'Please enter your birthday';
     if (!isRealDate(formData.birthday)) return 'Please enter a real date';
     const age = calculateAge(formData.birthday);
-    if (age < MIN_AGE) return `You must be at least ${MIN_AGE} to use MatchFlix`;
+    if (age < MIN_AGE) return `You must be at least ${MIN_AGE} to use Cinephile`;
     if (age > MAX_AGE) return 'Please enter a valid birthday';
     return '';
   };
@@ -449,7 +473,7 @@ export default function RegisterPage() {
 
             <div className="space-y-6 px-6 pt-4 pb-8 sm:px-8">
               <div className="text-center mb-8">
-                <Logo className="h-14 sm:h-16 mx-auto mb-3" />
+                <Wordmark className="h-14 sm:h-16 mx-auto mb-4" />
                 <h2 className="text-2xl font-semibold text-gray-800 mb-2">Create Your Account</h2>
                 <p className="text-gray-600 text-sm">Start your journey to find your perfect match</p>
               </div>
@@ -568,9 +592,22 @@ export default function RegisterPage() {
           </StepCard>
         )}
 
+        <GuidelinesModal open={showGuidelines} onClose={() => setShowGuidelines(false)} />
+
+        {permissionHelp && (
+          <PermissionSettingsDialog
+            open
+            kind={permissionHelp.kind}
+            outcome={permissionHelp.outcome}
+            retrying={requestingPermission}
+            onRetry={permissionHelp.kind === 'location' ? handleEnableLocation : handleEnableNotifications}
+            onClose={() => setPermissionHelp(null)}
+          />
+        )}
+
         {/* Step 4: Preferred name */}
         {step === STEPS.NAME && (
-          <StepCard title="What's your preferred name?" subtitle="This is how you'll appear on MatchFlix" error={error} onBack={handleBack}>
+          <StepCard title="What's your preferred name?" subtitle="This is how you'll appear on Cinephile" error={error} onBack={handleBack}>
             <ModernInput
               type="text"
               name="name"
@@ -879,7 +916,7 @@ export default function RegisterPage() {
 
             <div className="text-center space-y-6">
               <div>
-                <Logo className="h-14 sm:h-16 mx-auto mb-3" />
+                <Logo variant="logo2" className="h-14 sm:h-16 mx-auto mb-3" />
                 <h2 className="text-3xl font-bold text-gray-800">Before you swipe</h2>
               </div>
 
@@ -893,10 +930,15 @@ export default function RegisterPage() {
                 </p>
 
                 <p className="text-gray-700">
-                  In our mission to actively keep MatchFlix safe and inclusive, we ask you to join us by adhering to our{' '}
-                  <Link href="/guidelines" className="text-[#1f2937] hover:text-[#111827] font-semibold underline">
+                  In our mission to actively keep Cinephile safe and inclusive, we ask you to join us by adhering to our{' '}
+                  {/* Opens in a modal so leaving to read them doesn't lose sign-up progress */}
+                  <button
+                    type="button"
+                    onClick={() => setShowGuidelines(true)}
+                    className="text-[#1f2937] hover:text-[#111827] font-semibold underline"
+                  >
                     guidelines
-                  </Link>
+                  </button>
                   .
                 </p>
 
@@ -905,7 +947,7 @@ export default function RegisterPage() {
                 </p>
 
                 <p className="text-left text-[#1f2937] font-semibold text-lg pt-2">
-                  With love, The MatchFlix Team
+                  With love, The Cinephile Team
                 </p>
               </div>
             </div>

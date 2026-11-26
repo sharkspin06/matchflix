@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { savePhoto, removeStoredPhoto } from '../utils/photo-storage.util';
 import { ageFromBirthday, parseBirthday, MIN_DATING_AGE } from '../utils/age-range.util';
+import { parseCoordinates } from '../utils/location.util';
+import { parseLetterboxdUsername } from '../utils/letterboxd.util';
 
 const prisma = new PrismaClient();
 
@@ -75,7 +77,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       }
       const newAge = ageFromBirthday(parsed);
       if (newAge < MIN_DATING_AGE) {
-        return res.status(400).json({ error: `You must be at least ${MIN_DATING_AGE} to use MatchFlix` });
+        return res.status(400).json({ error: `You must be at least ${MIN_DATING_AGE} to use Cinephile` });
       }
       if (newAge > 100) {
         return res.status(400).json({ error: 'Please enter a valid birthday' });
@@ -93,9 +95,23 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       updateData.sexualOrientation = (sexualOrientation as string[]).slice(0, 1);
     }
     if (bio !== undefined) updateData.bio = bio;
+    if (req.body.letterboxdUsername !== undefined) {
+      const letterboxd = parseLetterboxdUsername(req.body.letterboxdUsername);
+      if (!letterboxd.ok) {
+        return res.status(400).json({ error: letterboxd.error });
+      }
+      updateData.letterboxdUsername = letterboxd.username;
+    }
     if (location !== undefined) updateData.location = location;
-    if (latitude !== undefined) updateData.latitude = parseFloat(latitude);
-    if (longitude !== undefined) updateData.longitude = parseFloat(longitude);
+    if (latitude !== undefined || longitude !== undefined) {
+      // Validated, then snapped to a ~1 km grid so exact positions are never stored
+      const coords = parseCoordinates(latitude, longitude);
+      if (!coords.ok) {
+        return res.status(400).json({ error: coords.error });
+      }
+      updateData.latitude = coords.latitude;
+      updateData.longitude = coords.longitude;
+    }
     if (zodiac !== undefined) updateData.zodiac = zodiac;
     if (education !== undefined) updateData.education = education;
     if (pets !== undefined) updateData.pets = pets;
@@ -109,15 +125,12 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     if (preferredAgeMax !== undefined) updateData.preferredAgeMax = parseInt(preferredAgeMax);
     if (preferredDistance !== undefined) updateData.preferredDistance = parseInt(preferredDistance);
 
-    console.log('Update data being sent to DB:', updateData);
-
     const profile = await prisma.profile.update({
       where: { userId: req.userId },
       data: updateData,
     });
 
-    console.log('Profile updated successfully:', profile);
-    console.log('Saved topFilms:', profile.topFilms);
+    console.log(`[UpdateProfile] Updated profile for user ${req.userId}`);
 
     res.json(profile);
   } catch (error) {

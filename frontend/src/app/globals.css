@@ -173,6 +173,33 @@
     animation: scaleIn 0.4s ease-out;
   }
 
+  /* Chat: a message that just arrived or was just sent slides up into place */
+  .animate-messageIn {
+    animation: messageIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Chat: "Sending…" only shows if sending takes a while, so quick sends don't flicker */
+  .animate-delayedFadeIn {
+    animation: fadeIn 0.2s ease-out 0.8s both;
+  }
+
+  @keyframes messageIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-messageIn {
+      animation: none;
+    }
+  }
+
   /* "It's a match" photos sliding in from each side, and hearts drifting up */
   .animate-matchLeft {
     animation: matchLeft 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;

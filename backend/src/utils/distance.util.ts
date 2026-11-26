@@ -26,7 +26,20 @@ export function calculateDistance(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
   
-  return Math.round(distance); // Return rounded distance in km
+  // Whole km, never below 1: stored coordinates are snapped to a ~1 km grid, so finer
+  // values (including "0 km") would suggest precision we deliberately don't keep.
+  return Math.max(1, Math.round(distance));
+}
+
+/** Distance between two profiles, or undefined unless both have a saved location. */
+export function distanceBetween(
+  a: { latitude: number | null; longitude: number | null } | null | undefined,
+  b: { latitude: number | null; longitude: number | null } | null | undefined
+): number | undefined {
+  if (a?.latitude == null || a.longitude == null || b?.latitude == null || b.longitude == null) {
+    return undefined;
+  }
+  return calculateDistance(a.latitude, a.longitude, b.latitude, b.longitude);
 }
 
 /**

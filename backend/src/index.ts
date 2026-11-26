@@ -22,7 +22,7 @@ const allowedOrigins = [
   'http://localhost',
   'https://localhost',
   'capacitor://localhost',
-  'https://matchflix-dating-up.vercel.app',
+  'https://matchflix-frontend.vercel.app',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
@@ -41,6 +41,8 @@ const corsOptions = {
 const io = new Server(httpServer, {
   cors: corsOptions,
 });
+// Lets HTTP handlers (e.g. sending a photo) broadcast over the socket: req.app.get('io')
+app.set('io', io);
 
 // Middleware
 app.use(cors(corsOptions));

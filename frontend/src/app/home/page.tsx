@@ -50,6 +50,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import LogoutDialog from '@/components/LogoutDialog';
 import { notificationService } from '@/lib/notifications';
+import { requestLocation } from '@/lib/permissions';
+import PermissionSettingsDialog from '@/components/PermissionSettingsDialog';
+import PhotoViewer from '@/components/PhotoViewer';
 
 export default function HomePage() {
   const router = useRouter();
@@ -68,7 +71,11 @@ export default function HomePage() {
     birthday: '',
     sexualOrientation: [] as string[],
     bio: '',
+    letterboxdUsername: '',
     location: '',
+    // Left undefined unless "use my location" sets them, so saving doesn't resend old values
+    latitude: undefined as number | undefined,
+    longitude: undefined as number | undefined,
     gender: '',
     zodiac: '',
     education: '',
@@ -90,6 +97,8 @@ export default function HomePage() {
   const [showDrinkingModal, setShowDrinkingModal] = useState(false);
   const [showSmokingModal, setShowSmokingModal] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [locationHelp, setLocationHelp] = useState<'blocked' | 'unavailable' | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [selectedProfilePic, setSelectedProfilePic] = useState<File | null>(null);
   const [filmSearch, setFilmSearch] = useState('');
   const [filmResults, setFilmResults] = useState<any[]>([]);
@@ -137,7 +146,10 @@ export default function HomePage() {
           birthday: data.birthday ? String(data.birthday).slice(0, 10) : '',
           sexualOrientation: data.sexualOrientation || [],
           bio: data.bio || '',
+          letterboxdUsername: data.letterboxdUsername || '',
           location: data.location || '',
+          latitude: undefined,
+          longitude: undefined,
           gender: ({ male: 'man', female: 'woman' } as Record<string, string>)[data.gender] ?? (data.gender || ''),
           zodiac: data.zodiac || '',
           education: data.education || '',
@@ -277,42 +289,25 @@ export default function HomePage() {
   };
 
   const handleGetLocation = async () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
-
     setGettingLocation(true);
-    
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        
-        try {
-          // Use reverse geocoding to get city name
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-          );
-          const data = await response.json();
-          
-          const city = data.address.city || data.address.town || data.address.village || '';
-          const country = data.address.country || '';
-          const location = city && country ? `${city}, ${country}` : data.display_name;
-          
-          setEditForm({ ...editForm, location });
-        } catch (error) {
-          console.error('Error getting location name:', error);
-          setEditForm({ ...editForm, location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` });
-        } finally {
-          setGettingLocation(false);
-        }
-      },
-      (error) => {
-        console.error('Error getting location:', error);
-        alert('Unable to get your location. Please enter it manually.');
-        setGettingLocation(false);
+    try {
+      // Same accurate, privacy-rounded reading as sign-up; also refreshes the coordinates used for distance
+      const { location: result, outcome } = await requestLocation();
+      if (outcome === 'blocked' || outcome === 'unavailable') {
+        setLocationHelp(outcome);
+        return;
       }
-    );
+      setLocationHelp(null);
+      if (!result) return; // prompt closed without an answer
+      setEditForm((form) => ({
+        ...form,
+        location: result.location || form.location,
+        latitude: result.latitude,
+        longitude: result.longitude,
+      }));
+    } finally {
+      setGettingLocation(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -416,9 +411,9 @@ export default function HomePage() {
             ? { title: 'text-gray-50', text: 'text-gray-200', muted: 'text-gray-400', heading: 'text-gray-400', chip: 'bg-gray-800 text-gray-200 ring-gray-700', soft: 'bg-gray-800', divider: 'divide-gray-800', border: 'border-gray-800', ring: 'ring-gray-900', track: 'bg-gray-800' }
             : { title: 'text-gray-900', text: 'text-gray-800', muted: 'text-gray-500', heading: 'text-gray-500', chip: 'bg-white text-gray-800 ring-gray-200', soft: 'bg-gray-100', divider: 'divide-gray-200/70', border: 'border-gray-200/70', ring: 'ring-white', track: 'bg-gray-200' };
 
-          const photo = profile.photos?.[0]
-            ? profile.photos[0].startsWith('http') ? profile.photos[0] : `${API_URL}${profile.photos[0]}`
-            : null;
+          // Every photo the person uploaded (sign-up asks for two); the first is the profile picture
+          const photos: string[] = (profile.photos || []).map((p: string) => (p.startsWith('http') ? p : `${API_URL}${p}`));
+          const photo = photos[0] ?? null;
 
           const basics = [
             { value: profile.zodiac, icon: Moon },
@@ -469,14 +464,16 @@ export default function HomePage() {
                 <div className="relative">
                   <div className={`w-32 h-32 rounded-full overflow-hidden ring-4 ${t.ring} shadow-[0_12px_32px_-8px_rgba(0,0,0,0.35)] bg-[#1f2937]`}>
                     {photo ? (
-                      <img
-                        src={photo}
-                        alt={profile.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.src = '/placeholder-avatar.png';
-                        }}
-                      />
+                      <button type="button" onClick={() => setViewerIndex(0)} aria-label="View your photos" className="block w-full h-full">
+                        <img
+                          src={photo}
+                          alt={profile.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = '/placeholder-avatar.png';
+                          }}
+                        />
+                      </button>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <User className="w-14 h-14 text-white/50" />
@@ -540,6 +537,41 @@ export default function HomePage() {
               <div className={`border-t ${t.border}`} />
 
               <div className="py-8 space-y-9">
+                {/* All uploaded photos; tap one to view them full screen */}
+                {photos.length > 0 && (
+                  <section>
+                    <SectionTitle icon={Camera}>My photos</SectionTitle>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {photos.map((src, index) => (
+                        <button
+                          key={`${src}-${index}`}
+                          type="button"
+                          onClick={() => setViewerIndex(index)}
+                          aria-label={`View photo ${index + 1} of ${photos.length}`}
+                          className={`group relative aspect-[3/4] rounded-xl overflow-hidden shadow-[0_8px_20px_-8px_rgba(0,0,0,0.4)] ${t.soft}`}
+                        >
+                          <img
+                            src={src}
+                            alt=""
+                            loading="lazy"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.currentTarget.src = '/placeholder-avatar.png';
+                            }}
+                          />
+                          {index === 0 && (
+                            <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-white text-[10px] font-semibold">
+                              Profile
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                <PhotoViewer photos={photos} openAt={viewerIndex} onClose={() => setViewerIndex(null)} alt={profile.name} />
+
                 {/* Top films */}
                 <section>
                   <SectionTitle icon={Film}>My top 4 films</SectionTitle>
@@ -885,6 +917,29 @@ export default function HomePage() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent resize-none"
                   placeholder="Tell us about yourself..."
                 />
+              </div>
+
+              {/* Letterboxd */}
+              <div>
+                <label htmlFor="letterboxd" className="block text-sm font-medium text-gray-700 mb-2">
+                  Letterboxd <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <div className="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-[#1f2937] focus-within:border-transparent">
+                  <span className="pl-4 text-gray-400 select-none">letterboxd.com/</span>
+                  <input
+                    id="letterboxd"
+                    type="text"
+                    inputMode="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={editForm.letterboxdUsername}
+                    onChange={(e) => setEditForm({ ...editForm, letterboxdUsername: e.target.value })}
+                    className="flex-1 min-w-0 pr-4 py-3 bg-transparent border-0 focus:outline-none focus:ring-0"
+                    placeholder="username"
+                  />
+                </div>
+                <p className="text-sm text-gray-500 mt-2">Shown on your profile as a link. You can paste your profile link too.</p>
               </div>
 
               {/* Top 4 Films */}
@@ -1295,6 +1350,18 @@ export default function HomePage() {
         onConfirm={confirmLogout}
         isDarkMode={isDarkMode}
       />
+
+      {locationHelp && (
+        <PermissionSettingsDialog
+          open
+          kind="location"
+          outcome={locationHelp}
+          retrying={gettingLocation}
+          onRetry={handleGetLocation}
+          onClose={() => setLocationHelp(null)}
+          isDarkMode={isDarkMode}
+        />
+      )}
 
       {/* Bottom Navigation */}
       <nav className={`fixed bottom-0 left-0 right-0 ${isDarkMode ? 'bg-gray-900/95' : 'bg-white/95'} backdrop-blur-lg border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} px-4 sm:px-6 py-2 shadow-lg`}>

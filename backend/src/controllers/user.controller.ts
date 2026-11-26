@@ -1,21 +1,18 @@
 import { Response } from 'express';
 import { PrismaClient, Profile } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { calculateDistance } from '../utils/distance.util';
+import { distanceBetween } from '../utils/distance.util';
+import { toPublicProfile } from '../utils/location.util';
 
 const prisma = new PrismaClient();
 
 /**
  * Interface for profile with match score and distance
  */
-interface ProfileWithScore extends Profile {
+type ProfileWithScore = ReturnType<typeof toPublicProfile<Profile>> & {
   matchScore: number;
   distance?: number;
-  user: {
-    id: string;
-    email: string;
-  };
-}
+};
 
 /**
  * Calculate match score between two profiles based on common interests
@@ -75,21 +72,13 @@ const getInteractedUserIds = async (currentUserId: string): Promise<string[]> =>
 const fetchPotentialMatches = async (
   currentUserId: string,
   excludedUserIds: string[]
-): Promise<any[]> => {
+): Promise<Profile[]> => {
   try {
     const potentialMatches = await prisma.profile.findMany({
       where: {
         userId: {
           not: currentUserId,
           notIn: excludedUserIds,
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-          },
         },
       },
       take: 50, // Limit to prevent performance issues
@@ -137,25 +126,12 @@ export const discoverUsers = async (req: AuthRequest, res: Response) => {
     // Calculate match scores and distances for each profile
     const usersWithScores: ProfileWithScore[] = potentialMatches.map((profile) => {
       const matchScore = calculateMatchScore(currentProfile, profile);
-      
-      // Calculate distance if both users have coordinates
-      let distance: number | undefined;
-      if (
-        currentProfile.latitude && currentProfile.longitude &&
-        profile.latitude && profile.longitude
-      ) {
-        distance = calculateDistance(
-          currentProfile.latitude,
-          currentProfile.longitude,
-          profile.latitude,
-          profile.longitude
-        );
-      }
-      
+
+      // Coordinates are used here and never sent: people see only the rounded distance
       return {
-        ...profile,
+        ...toPublicProfile(profile),
         matchScore,
-        distance,
+        distance: distanceBetween(currentProfile, profile),
       };
     });
 
@@ -207,14 +183,6 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
     // Fetch user profile
     const profile = await prisma.profile.findUnique({
       where: { userId: id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
-      },
     });
 
     if (!profile) {
@@ -229,22 +197,8 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
       where: { userId: req.userId },
     });
 
-    // Calculate distance if both users have coordinates
-    let distance: number | undefined;
-    if (
-      currentProfile?.latitude && currentProfile?.longitude &&
-      profile.latitude && profile.longitude
-    ) {
-      distance = calculateDistance(
-        currentProfile.latitude,
-        currentProfile.longitude,
-        profile.latitude,
-        profile.longitude
-      );
-    }
-
     console.log(`[GetUser] Successfully fetched profile for user ${id}`);
-    res.status(200).json({ ...profile, distance });
+    res.status(200).json({ ...toPublicProfile(profile), distance: distanceBetween(currentProfile, profile) });
   } catch (error) {
     console.error('[GetUser] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to get user';

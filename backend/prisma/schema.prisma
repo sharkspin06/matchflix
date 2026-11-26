@@ -56,6 +56,7 @@ model Profile {
   // Private: used for matching only, never shown to other users
   sexualOrientation String[] @default([])
   bio       String?
+  letterboxdUsername String? // Public: linked from the profile as letterboxd.com/<username>
   location  String?
   latitude  Float?   // Latitude coordinate
   longitude Float?   // Longitude coordinate
@@ -137,7 +138,8 @@ model Message {
   senderId  String
   sender    User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   
-  content   String
+  content   String   // May be empty when the message is just a photo
+  imageUrl  String?  // Photo sent in the chat (uploaded to storage by the server)
   read      Boolean  @default(false)
   reactions MessageReaction[]
 

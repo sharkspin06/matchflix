@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
-import Logo from '@/components/Logo';
+import Wordmark from '@/components/Wordmark';
 
 const SPLASH_DURATION_MS = 1800;
 const SPLASH_FADE_MS = 500;
@@ -64,7 +64,7 @@ function MobileProfileCard({ posters, className }: { posters: string[][]; classN
 
 function MobileHero() {
   return (
-    <div className="lg:hidden relative w-full max-w-[380px] h-[440px] mx-auto mb-1">
+    <div className="wide:hidden relative w-full max-w-[380px] h-[440px] mx-auto mb-1">
       <MobileProfileCard
         className="left-2 bottom-6 w-[225px] h-[325px] -rotate-12"
         posters={[
@@ -147,14 +147,14 @@ export default function Home() {
   return (
     <>
     {splashPhase !== 'done' && <SplashScreen visible={splashPhase === 'show'} animateIn />}
-    <div className={`theme-surface min-h-screen flex items-center justify-center px-4 lg:px-16 relative bg-white transition-[opacity,background-color] duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+    <div className={`theme-surface min-h-screen flex items-center justify-center px-4 wide:px-16 relative bg-white transition-[opacity,background-color] duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
       {/* Light / dark mode */}
       <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-30">
         <ThemeToggle />
       </div>
 
       {/* Left Side - Decorative Cards */}
-      <div className="hidden lg:flex flex-1 items-center justify-center relative max-w-2xl">
+      <div className="hidden wide:flex flex-1 items-center justify-center relative max-w-2xl">
         {/* Background Card 1 */}
         <div className="absolute left-20 top-1/2 -translate-y-1/2 w-80 h-[500px] bg-gray-800 rounded-3xl shadow-2xl transform -rotate-12 overflow-hidden border-8 border-white">
           {/* Movie Grid */}
@@ -231,13 +231,13 @@ export default function Home() {
       </div>
 
       {/* Right Side - Welcome Options */}
-      <div className="w-full max-w-md lg:max-w-lg relative z-20">
-        <div className="px-4 py-6 sm:p-8 lg:p-12 mx-auto">
-          <div className="relative z-10 flex justify-center -mb-14 lg:mb-6">
-            <Logo className="h-16 sm:h-20 lg:h-24" />
+      <div className="w-full max-w-md wide:max-w-lg relative z-20">
+        <div className="px-4 py-6 sm:p-8 wide:p-12 mx-auto">
+          <div className="relative -top-1 wide:top-0 z-10 flex justify-center -mb-14 wide:mb-6">
+            <Wordmark className="h-14 sm:h-16 wide:h-20" />
           </div>
           <MobileHero />
-          <div className="flex flex-col items-center mt-4 mb-6 lg:mt-0 lg:mb-10">
+          <div className="flex flex-col items-center mt-4 mb-6 wide:mt-0 wide:mb-10">
             <p className="w-full text-gray-600 text-center text-sm leading-relaxed text-balance">
               Follow mo naman ako sa Letterboxd.
               <br />
@@ -245,7 +245,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="space-y-3 mt-8 lg:mt-16">
+          <div className="space-y-3 mt-8 wide:mt-16">
             {/* Create Account Button */}
             <button 
               onClick={() => handleNavigation('/register')}
@@ -264,7 +264,7 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="mt-8 lg:mt-12 text-center">
+          <div className="mt-8 wide:mt-12 text-center">
             <p className="text-sm text-gray-500">
               By continuing, you agree to our{' '}
               <Link href="/terms" className="text-[#1f2937] hover:text-[#111827] underline">

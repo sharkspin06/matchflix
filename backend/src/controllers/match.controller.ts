@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { PrismaClient, Like, Match } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { publicUserSelect } from '../utils/location.util';
 
 const prisma = new PrismaClient();
 
@@ -44,14 +45,10 @@ const createMatch = async (userId1: string, userId2: string): Promise<Match | nu
       },
       include: {
         user1: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
         user2: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
       },
     });
@@ -104,14 +101,10 @@ export const likeUser = async (req: AuthRequest, res: Response) => {
         },
         include: {
           user1: {
-            include: {
-              profile: true,
-            },
+            select: publicUserSelect,
           },
           user2: {
-            include: {
-              profile: true,
-            },
+            select: publicUserSelect,
           },
         },
       });
@@ -163,14 +156,10 @@ export const getMatches = async (req: AuthRequest, res: Response) => {
       },
       include: {
         user1: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
         user2: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
         messages: {
           orderBy: {
@@ -320,9 +309,7 @@ export const getReceivedLikes = async (req: AuthRequest, res: Response) => {
       },
       include: {
         fromUser: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
       },
       orderBy: {

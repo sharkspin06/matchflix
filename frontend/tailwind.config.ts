@@ -9,6 +9,13 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        // Side-by-side layouts only when there's room across: wide AND landscape.
+        // Portrait tablets (e.g. iPad Pro at 1024px) keep the stacked layout.
+        wide: { raw: '(min-width: 1024px) and (orientation: landscape)' },
+        // Tablet-sized screens (either orientation), excluding phones turned sideways.
+        tablet: { raw: '(min-width: 768px) and (min-height: 700px)' },
+      },
       colors: {
         primary: {
           50: '#f9fafb',

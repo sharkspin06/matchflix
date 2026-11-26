@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { publicUserSelect } from '../utils/location.util';
+import { savePhoto, isRealImage } from '../utils/photo-storage.util';
 
 const prisma = new PrismaClient();
 
@@ -40,7 +42,8 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       include: {
         reactions: { select: { userId: true, emoji: true } },
         sender: {
-          include: {
+          select: {
+            id: true,
             profile: {
               select: {
                 name: true,
@@ -130,7 +133,8 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       include: {
         reactions: { select: { userId: true, emoji: true } },
         sender: {
-          include: {
+          select: {
+            id: true,
             profile: {
               select: {
                 name: true,
@@ -175,14 +179,10 @@ export const getConversations = async (req: AuthRequest, res: Response) => {
       where: whereClause,
       include: {
         user1: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
         user2: {
-          include: {
-            profile: true,
-          },
+          select: publicUserSelect,
         },
         messages: {
           orderBy: {
@@ -309,5 +309,62 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get unread count error:', error);
     res.status(500).json({ error: 'Failed to get unread count' });
+  }
+};
+
+// Longest caption accepted with a photo (same limit as text messages over the socket)
+const MAX_CAPTION_LENGTH = 2000;
+
+/**
+ * Send a photo (with an optional caption) in a chat.
+ * The server uploads the image and creates the message itself, so a client can never point a
+ * message at an arbitrary URL. The saved message is broadcast like a text message, carrying the
+ * client's temporary `clientId` so the sender's "sending" bubble is replaced in place.
+ * @route POST /api/messages/match/:matchId/photo  (multipart: photo, caption?, clientId?)
+ */
+export const sendPhotoMessage = async (req: AuthRequest, res: Response) => {
+  try {
+    const { matchId } = req.params;
+    const caption = typeof req.body.caption === 'string' ? req.body.caption.trim() : '';
+    const clientId = typeof req.body.clientId === 'string' ? req.body.clientId.slice(0, 64) : undefined;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please choose a photo' });
+    }
+    if (!isRealImage(req.file.buffer)) {
+      return res.status(400).json({ error: 'Only JPG, PNG, GIF or WebP photos can be sent' });
+    }
+    if (caption.length > MAX_CAPTION_LENGTH) {
+      return res.status(400).json({ error: `Captions can be up to ${MAX_CAPTION_LENGTH} characters` });
+    }
+
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || (match.user1Id !== req.userId && match.user2Id !== req.userId)) {
+      return res.status(403).json({ error: 'Not part of this match' });
+    }
+
+    const imageUrl = await savePhoto(req.file, `messages/${matchId}`);
+
+    const message = await prisma.message.create({
+      data: { matchId, senderId: req.userId!, content: caption, imageUrl },
+      include: {
+        reactions: { select: { userId: true, emoji: true } },
+        sender: { select: { id: true, profile: { select: { name: true, photos: true } } } },
+      },
+    });
+    const payload = { ...message, clientId };
+
+    // Deliver live, exactly like a text message sent over the socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`match:${matchId}`).emit('new_message', payload);
+      const otherUserId = match.user1Id === req.userId ? match.user2Id : match.user1Id;
+      io.to(`user:${otherUserId}`).emit('notification', { type: 'new_message', matchId, message: payload });
+    }
+
+    res.status(201).json(payload);
+  } catch (error) {
+    console.error('Send photo message error:', error);
+    res.status(500).json({ error: 'Failed to send photo' });
   }
 };

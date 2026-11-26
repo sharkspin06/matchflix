@@ -3,20 +3,63 @@
 import { API_URL } from '@/lib/config';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Send, Heart, Users, MessageCircle, Check, CheckCheck, MoreVertical, UserX, Home, Smile } from 'lucide-react';
+import { Send, Heart, Users, MessageCircle, Check, CheckCheck, MoreVertical, UserX, Home, Smile, ImagePlus, X } from 'lucide-react';
+import PhotoViewer from '@/components/PhotoViewer';
 import BackButton from '@/components/BackButton';
 import ProfileSheet, { SheetProfile } from '@/components/ProfileSheet';
 import { socketClient } from '@/lib/socket';
+import { playReceiveSound, playSendSound, unlockSounds } from '@/lib/sounds';
 import { useTheme } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
 interface Message {
   id: string;
+  matchId?: string;
   content: string;
   senderId: string;
   createdAt: string;
   read?: boolean;
   reactions?: { userId: string; emoji: string }[];
+  /** Temporary id the sender's device gave the message, echoed back by the server */
+  clientId?: string;
+  /** Only on our own messages that the server hasn't confirmed yet */
+  status?: 'sending' | 'failed';
+  /** Photo sent in the chat */
+  imageUrl?: string | null;
+  /** The sender's own copy of a photo they just sent, shown until (and after) the upload finishes */
+  localPreview?: string;
+}
+
+// Same limit the server applies to uploads
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+// Within this distance (px) of the bottom, new messages keep the chat scrolled to the end
+const NEAR_BOTTOM_PX = 120;
+
+const newClientId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/**
+ * Adds a message from the server. If it's the saved version of one of our own pending
+ * messages (same clientId), it replaces that bubble in place instead of adding a second one.
+ */
+function mergeIncoming(prev: Message[], incoming: Message): Message[] {
+  const pendingIndex = incoming.clientId
+    ? prev.findIndex((m) => m.status && m.clientId === incoming.clientId)
+    : -1;
+  if (prev.some((m) => m.id === incoming.id)) {
+    // Already have it (the reply and the broadcast both arrived): drop any leftover pending copy
+    return pendingIndex === -1 ? prev : prev.filter((_, i) => i !== pendingIndex);
+  }
+  if (pendingIndex !== -1) {
+    const next = [...prev];
+    // Keep showing the local copy of a photo, so it doesn't flicker while the uploaded one loads
+    next[pendingIndex] = { ...incoming, status: undefined, localPreview: prev[pendingIndex].localPreview };
+    return next;
+  }
+  return [...prev, incoming];
 }
 
 interface UserProfile {
@@ -62,7 +105,43 @@ function ChatPageContent() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isInitialLoad = useRef(true);
+  // Set when the next render should scroll to the newest message
+  const scrollOnNextRender = useRef(false);
+  // Their messages that arrived while scrolled up, shown as a "new messages" button
+  const [unseenBelow, setUnseenBelow] = useState(0);
+
+  // Photo picked to send (shown above the message box until sent or removed)
+  const [pendingPhoto, setPendingPhoto] = useState<{ file: File; previewUrl: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // What's needed to retry a photo that failed to send, by clientId
+  const photoRetries = useRef(new Map<string, { file: File; caption: string }>());
+  // Local preview URLs to release when leaving the chat
+  const previewUrls = useRef(new Set<string>());
+  // Photo opened full screen
+  const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    const urls = previewUrls.current;
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+
+  // Messages added while the chat is open (sent or received); only these get the entrance animation
+  const liveKeys = useRef(new Set<string>());
+  // Stable across the swap from "sending" bubble to saved message, so the bubble isn't re-created
+  const messageKey = (m: Message) => m.clientId || m.id;
+
+  // Latest messages for socket handlers, which would otherwise see the list from when they were set up
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const isNearBottom = () => {
+    const el = messagesContainerRef.current;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -85,9 +164,13 @@ function ChatPageContent() {
       }
     }
 
-    // Cleanup on unmount
+    // Any tap or keypress here unlocks audio, so the first incoming message can chime
+    const unlock = () => unlockSounds();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
     return () => {
-      socketClient.offNewMessage();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
     };
   }, [userId]);
 
@@ -126,31 +209,48 @@ function ChatPageContent() {
     if (!matchId) return;
 
     const handleNewMessage = (message: Message) => {
-      console.log('Received new message:', message);
-      setMessages(prev => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+      // The connection can be in several chat rooms; only this chat's messages belong here
+      if (message.matchId && message.matchId !== matchId) return;
+      const mine = message.senderId === currentUserId;
+      const follow = mine || isNearBottom();
+
+      // Decided outside the state update, which React may run twice in development
+      if (!messagesRef.current.some((m) => m.id === message.id)) {
+        liveKeys.current.add(messageKey(message));
+        if (!mine) playReceiveSound();
+      }
+      setMessages((prev) => mergeIncoming(prev, message));
+
+      // Stay at the newest message if already there; otherwise don't yank someone reading older ones
+      if (follow) scrollOnNextRender.current = true;
+      else if (!mine) setUnseenBelow((n) => n + 1);
+
       // We're looking at the chat, so their message counts as read
-      if (message.senderId !== currentUserId && document.visibilityState === 'visible') {
+      if (!mine && document.visibilityState === 'visible') {
         socketClient.markRead(matchId);
       }
-      
-      // Scroll to bottom when new message arrives
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+    };
+
+    // Someone reacted (or removed a reaction): replace that message's reactions
+    const handleReaction = ({ messageId, reactions }: { messageId: string; reactions: { userId: string; emoji: string }[] }) => {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
+    };
+
+    // They opened the chat or saw a new message: flip our messages to "Read"
+    const handleRead = ({ matchId: readMatchId, readerId }: { matchId: string; readerId: string }) => {
+      if (readMatchId !== matchId || readerId === currentUserId) return;
+      setMessages((prev) => prev.map((m) => (m.senderId === currentUserId && !m.read ? { ...m, read: true } : m)));
+    };
+
+    // Back online after a drop: fetch anything sent meanwhile (the room is rejoined automatically)
+    const handleReconnect = () => {
+      syncLatest();
     };
 
     socketClient.onNewMessage(handleNewMessage);
-
-    // Someone reacted (or removed a reaction): replace that message's reactions
-    socketClient.onMessageReaction(({ messageId, reactions }) => {
-      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
-    });
-
-    // They opened the chat or saw a new message: flip our messages to "Read"
-    socketClient.onMessagesRead(({ matchId: readMatchId, readerId }) => {
-      if (readMatchId !== matchId || readerId === currentUserId) return;
-      setMessages((prev) => prev.map((m) => (m.senderId === currentUserId && !m.read ? { ...m, read: true } : m)));
-    });
+    socketClient.onMessageReaction(handleReaction);
+    socketClient.onMessagesRead(handleRead);
+    socketClient.onReconnect(handleReconnect);
 
     // Coming back to this tab: anything that arrived while away is now seen
     const onVisible = () => {
@@ -159,12 +259,22 @@ function ChatPageContent() {
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      socketClient.offNewMessage();
-      socketClient.offMessagesRead();
-      socketClient.offMessageReaction();
+      socketClient.offNewMessage(handleNewMessage);
+      socketClient.offMessagesRead(handleRead);
+      socketClient.offMessageReaction(handleReaction);
+      socketClient.offReconnect(handleReconnect);
+      socketClient.leaveMatch(matchId);
       document.removeEventListener('visibilitychange', onVisible);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, currentUserId]);
+
+  // Scroll to the newest message once it has rendered, when asked to
+  useEffect(() => {
+    if (!scrollOnNextRender.current) return;
+    scrollOnNextRender.current = false;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   // Load more messages handler
   const handleLoadMore = async () => {
@@ -188,15 +298,21 @@ function ChatPageContent() {
     }
   };
 
+  // Opening the chat: jump straight to the newest message (no visible scroll through history)
   useEffect(() => {
     if (isInitialLoad.current && messages.length > 0) {
-      scrollToBottom();
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
       isInitialLoad.current = false;
     }
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setUnseenBelow(0);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  const handleScroll = () => {
+    if (unseenBelow > 0 && isNearBottom()) setUnseenBelow(0);
   };
 
   const fetchUserProfile = async () => {
@@ -234,6 +350,7 @@ function ChatPageContent() {
           location: data.location || null,
           distance: data.distance !== undefined && data.distance !== null ? `${data.distance} km away` : undefined,
           bio: data.bio,
+          letterboxdUsername: data.letterboxdUsername || null,
           topFilms: (data.topFilms || []).map((poster: string) => ({ poster: toUrl(poster) })),
           favoriteGenres: data.interests || [],
           zodiac: data.zodiac,
@@ -342,24 +459,139 @@ function ChatPageContent() {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newMessage.trim() || !matchId) return;
-
-    const messageContent = newMessage.trim();
-    setNewMessage(''); // Clear input immediately for better UX
-
+  // After a reconnect: merge in the newest messages, in case any arrived while offline
+  const syncLatest = async () => {
     try {
-      // Send via Socket.IO for real-time delivery
-      socketClient.sendMessage(matchId, messageContent);
-      
-      // Note: The message will be added to the UI when we receive it back
-      // from the socket 'new_message' event, ensuring consistency
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Restore message on error
-      setNewMessage(messageContent);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const response = await fetch(`${API_URL}/api/messages/${userId}?page=1&limit=20`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const latest: Message[] = data.messages || data;
+      const follow = isNearBottom();
+      setMessages((prev) =>
+        latest
+          .reduce(mergeIncoming, prev)
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      );
+      if (follow) scrollOnNextRender.current = true;
+      if (matchId && document.visibilityState === 'visible') socketClient.markRead(matchId);
+    } catch {
+      // Still offline; the next reconnect tries again
+    }
+  };
+
+  // Sends over the socket and settles the pending bubble: swapped for the saved message, or marked failed
+  const deliver = async (clientId: string, content: string) => {
+    if (!matchId) return;
+    const result = await socketClient.sendMessage(matchId, content, clientId);
+    setMessages((prev) =>
+      result.ok
+        ? mergeIncoming(prev, result.message)
+        : prev.map((m) => (m.status && m.clientId === clientId ? { ...m, status: 'failed' } : m))
+    );
+  };
+
+  // Uploads a photo (with optional caption) and settles its pending bubble the same way as text
+  const deliverPhoto = async (clientId: string, file: File, caption: string) => {
+    if (!matchId) return;
+    photoRetries.current.set(clientId, { file, caption });
+    let saved: Message | null = null;
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      form.append('caption', caption);
+      form.append('clientId', clientId);
+      const response = await fetch(`${API_URL}/api/messages/match/${matchId}/photo`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        body: form,
+      });
+      if (response.ok) saved = await response.json();
+    } catch {
+      // Offline or the upload broke off: shown as failed below
+    }
+    if (saved) photoRetries.current.delete(clientId);
+    setMessages((prev) =>
+      saved
+        ? mergeIncoming(prev, saved)
+        : prev.map((m) => (m.status && m.clientId === clientId ? { ...m, status: 'failed' } : m))
+    );
+  };
+
+  const handlePhotoPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // so picking the same photo again still fires
+    if (!file) return;
+    if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type)) {
+      alert('Please choose a JPG, PNG, GIF or WebP photo.');
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      alert('Photos can be up to 5MB.');
+      return;
+    }
+    if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.previewUrl);
+    setPendingPhoto({ file, previewUrl: URL.createObjectURL(file) });
+    inputRef.current?.focus();
+  };
+
+  const removePendingPhoto = () => {
+    if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.previewUrl);
+    setPendingPhoto(null);
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    const content = newMessage.trim();
+    const photo = pendingPhoto;
+    if ((!content && !photo) || !matchId) return;
+
+    setNewMessage('');
+    setPendingPhoto(null);
+    // Keep the keyboard open for the next message (tapping Send would otherwise close it on phones)
+    inputRef.current?.focus();
+
+    // Show it right away; it's confirmed (or marked failed) when the server replies
+    const clientId = newClientId();
+    liveKeys.current.add(clientId);
+    if (photo) previewUrls.current.add(photo.previewUrl);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `pending-${clientId}`,
+        clientId,
+        content,
+        senderId: currentUserId,
+        createdAt: new Date().toISOString(),
+        reactions: [],
+        status: 'sending',
+        ...(photo ? { localPreview: photo.previewUrl } : {}),
+      },
+    ]);
+    scrollOnNextRender.current = true;
+    setUnseenBelow(0);
+    playSendSound();
+    // A photo goes up with the typed text as its caption; plain text goes over the socket
+    if (photo) deliverPhoto(clientId, photo.file, content);
+    else deliver(clientId, content);
+  };
+
+  const retrySend = (message: Message) => {
+    if (!message.clientId) return;
+    setMessages((prev) => prev.map((m) => (m.clientId === message.clientId ? { ...m, status: 'sending' } : m)));
+    const photo = photoRetries.current.get(message.clientId);
+    if (photo) deliverPhoto(message.clientId, photo.file, photo.caption);
+    else deliver(message.clientId, message.content);
+  };
+
+  // A photo finished loading and made the chat taller: stay at the bottom if we were close to it
+  const handleChatImageLoad = () => {
+    const el = messagesContainerRef.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
     }
   };
 
@@ -408,11 +640,12 @@ function ChatPageContent() {
     return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   };
   const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const lastOwnId = [...messages].reverse().find((m) => m.senderId === currentUserId)?.id;
+  // Last of our messages the server has saved; its read receipt is the one shown
+  const lastOwnId = [...messages].reverse().find((m) => m.senderId === currentUserId && !m.status)?.id;
   const icebreakers = [
-    "What's your all-time favourite film? 🎬",
+    "What's your all-time favourite film?",
     'Seen anything good lately?',
-    'Which film would you pick for a first date? 🍿',
+    'Which film would you pick for a first date?',
   ];
   const avatarFallback = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop';
 
@@ -420,6 +653,7 @@ function ChatPageContent() {
   const myReaction = (m: Message) => m.reactions?.find((r) => r.userId === currentUserId)?.emoji;
   // Same emoji again removes it; a different one replaces it
   const react = (m: Message, emoji: string) => {
+    if (m.status) return; // not saved yet, so there's nothing on the server to react to
     const next = myReaction(m) === emoji ? null : emoji;
     // Show it straight away; the server's broadcast confirms it
     setMessages((prev) =>
@@ -450,6 +684,7 @@ function ChatPageContent() {
   };
   // Press and hold a bubble to open the picker (phones)
   const startLongPress = (m: Message) => {
+    if (m.status) return;
     longPressTimer.current = setTimeout(() => {
       setReactingTo(m.id);
       if (navigator.vibrate) navigator.vibrate(10);
@@ -490,7 +725,7 @@ function ChatPageContent() {
                   {userProfile.name}
                 </h1>
                 <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {userProfile.distance !== undefined ? `${userProfile.distance} km away` : 'Matched on MatchFlix'}
+                  {userProfile.distance !== undefined ? `${userProfile.distance} km away` : 'Matched on Cinephile'}
                   <span className={isDarkMode ? 'text-gray-600' : 'text-gray-300'}> · </span>
                   <span className="font-medium">View profile</span>
                 </p>
@@ -532,7 +767,7 @@ function ChatPageContent() {
       </header>
 
       {/* Messages */}
-      <main ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-40">
+      <main ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 pt-4 pb-40">
         <div className="max-w-2xl mx-auto">
           {hasMore && messages.length > 0 && (
             <div className="flex justify-center pb-4">
@@ -602,9 +837,11 @@ function ChatPageContent() {
                 new Date(other.createdAt).toDateString() === new Date(message.createdAt).toDateString();
               const startsGroup = newDay || !closeTo(prev);
               const endsGroup = !closeTo(next);
+              // Your own just-sent photo shows from the device; everything else from storage
+              const photoSrc = message.localPreview || message.imageUrl || null;
 
               return (
-                <div key={message.id}>
+                <div key={messageKey(message)} className={liveKeys.current.has(messageKey(message)) ? 'animate-messageIn' : undefined}>
                   {newDay && (
                     <div className="flex items-center gap-3 my-5">
                       <span className={`flex-1 h-px ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`} />
@@ -669,13 +906,35 @@ function ChatPageContent() {
                           e.preventDefault();
                           setReactingTo(message.id);
                         }}
-                        className={`relative select-none cursor-pointer px-4 py-2.5 text-[15px] leading-snug break-words rounded-3xl ${message.reactions?.length ? 'mb-3' : ''} ${
+                        className={`relative select-none cursor-pointer text-[15px] leading-snug break-words rounded-3xl transition-opacity duration-200 ${
+                          photoSrc ? 'p-1' : 'px-4 py-2.5'
+                        } ${message.status === 'failed' ? 'opacity-50' : 'opacity-100'} ${message.reactions?.length ? 'mb-3' : ''} ${
                           isOwn
                             ? `${isDarkMode ? 'bg-gray-100 text-gray-900' : 'bg-[#1f2937] text-white'} ${endsGroup ? 'rounded-br-md' : ''}`
                             : `${isDarkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-900 ring-1 ring-gray-100 shadow-sm'} ${endsGroup ? 'rounded-bl-md' : ''}`
                         }`}
                       >
-                        {message.content}
+                        {photoSrc && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              // Opens the photo; double-tap-to-heart stays on text, react with long-press here
+                              e.stopPropagation();
+                              if (!message.status) setViewerPhoto(message.imageUrl || photoSrc);
+                            }}
+                            aria-label="View photo"
+                            className="block"
+                          >
+                            <img
+                              src={photoSrc}
+                              alt="Photo"
+                              draggable={false}
+                              onLoad={handleChatImageLoad}
+                              className={`block max-w-[240px] max-h-[320px] w-auto h-auto rounded-[20px] object-cover ${endsGroup ? (isOwn ? 'rounded-br-[10px]' : 'rounded-bl-[10px]') : ''}`}
+                            />
+                          </button>
+                        )}
+                        {message.content && <span className={photoSrc ? 'block px-3 pt-1.5 pb-1' : undefined}>{message.content}</span>}
 
                         {/* Reactions on this message */}
                         {message.reactions && message.reactions.length > 0 && (
@@ -711,7 +970,18 @@ function ChatPageContent() {
                       </button>
                       </div>
 
-                      {endsGroup && (
+                      {message.status === 'failed' ? (
+                        <button
+                          onClick={() => retrySend(message)}
+                          className="mt-1 px-1 text-[11px] font-semibold text-red-500 hover:text-red-600"
+                        >
+                          Not sent · Tap to retry
+                        </button>
+                      ) : message.status === 'sending' ? (
+                        endsGroup && (
+                          <span className={`mt-1 px-1 text-[11px] animate-delayedFadeIn ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Sending…</span>
+                        )
+                      ) : endsGroup && (
                         <span className={`mt-1 px-1 flex items-center gap-1 text-[11px] ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                           {timeLabel(message.createdAt)}
                           {isOwn && message.id === lastOwnId && (
@@ -737,18 +1007,70 @@ function ChatPageContent() {
         </div>
       </main>
 
+      {/* New messages arrived while scrolled up */}
+      {unseenBelow > 0 && (
+        <button
+          onClick={scrollToBottom}
+          className={`fixed bottom-[156px] left-1/2 -translate-x-1/2 z-40 h-9 px-4 rounded-full text-sm font-semibold shadow-lg animate-fadeIn ${
+            isDarkMode ? 'bg-gray-100 text-gray-900' : 'bg-[#1f2937] text-white'
+          }`}
+        >
+          {unseenBelow === 1 ? '1 new message' : `${unseenBelow} new messages`} ↓
+        </button>
+      )}
+
       {/* Message Input */}
       <div
         className={`fixed bottom-[84px] inset-x-0 z-40 backdrop-blur-lg border-t ${
           isDarkMode ? 'bg-gray-900/90 border-gray-800' : 'bg-white/90 border-gray-100'
         }`}
       >
+        {/* Photo chosen to send: removed with ✕, sent with the Send button (typed text becomes its caption) */}
+        {pendingPhoto && (
+          <div className="max-w-2xl mx-auto px-3 pt-2.5 animate-fadeIn">
+            <div className="relative inline-block">
+              <img
+                src={pendingPhoto.previewUrl}
+                alt="Photo to send"
+                className={`h-20 w-auto max-w-[160px] rounded-xl object-cover ring-1 ${isDarkMode ? 'ring-gray-700' : 'ring-gray-200'}`}
+              />
+              <button
+                type="button"
+                onClick={removePendingPhoto}
+                aria-label="Remove photo"
+                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#1f2937] text-white ring-2 ring-white flex items-center justify-center"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={3} />
+              </button>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSendMessage} className="max-w-2xl mx-auto flex items-center gap-2 px-3 py-2.5">
           <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={handlePhotoPicked}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Send a photo"
+            className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-200 ${
+              isDarkMode ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <ImagePlus className="w-[22px] h-[22px]" />
+          </button>
+          <input
+            ref={inputRef}
             type="text"
+            maxLength={2000}
+            enterKeyHint="send"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={userProfile ? `Message ${userProfile.name}…` : 'Type a message…'}
+            placeholder={pendingPhoto ? 'Add a caption…' : userProfile ? `Message ${userProfile.name}…` : 'Type a message…'}
             className={`flex-1 h-11 px-4 rounded-full text-[15px] outline-none border transition-all duration-200 focus:ring-4 ${
               isDarkMode
                 ? 'bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 focus:border-gray-500 focus:ring-white/5'
@@ -757,10 +1079,12 @@ function ChatPageContent() {
           />
           <button
             type="submit"
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() && !pendingPhoto}
             aria-label="Send message"
+            // Don't take focus from the text box, so the keyboard stays up between messages
+            onMouseDown={(e) => e.preventDefault()}
             className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 disabled:cursor-not-allowed ${
-              newMessage.trim()
+              newMessage.trim() || pendingPhoto
                 ? isDarkMode ? 'bg-gray-100 text-gray-900 hover:bg-white' : 'bg-[#1f2937] text-white hover:bg-[#111827]'
                 : isDarkMode ? 'bg-gray-800 text-gray-600' : 'bg-gray-100 text-gray-400'
             }`}
@@ -769,6 +1093,14 @@ function ChatPageContent() {
           </button>
         </form>
       </div>
+
+      {/* A chat photo opened full screen */}
+      <PhotoViewer
+        photos={viewerPhoto ? [viewerPhoto] : []}
+        openAt={viewerPhoto ? 0 : null}
+        onClose={() => setViewerPhoto(null)}
+        alt="Chat photo"
+      />
 
       {/* Their full profile */}
       <ProfileSheet

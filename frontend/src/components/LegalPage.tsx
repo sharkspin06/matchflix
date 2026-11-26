@@ -25,7 +25,7 @@ export default function LegalPage({ title, intro, sections, other }: LegalPagePr
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-gray-100">
         <div className="relative max-w-3xl mx-auto h-16 px-4 flex items-center justify-between">
           <BackButton href="/" label="Home" />
-          <Link href="/" aria-label="MatchFlix home" className="absolute left-1/2 -translate-x-1/2">
+          <Link href="/" aria-label="Cinephile home" className="absolute left-1/2 -translate-x-1/2">
             <Logo className="h-9" />
           </Link>
           <Link href={other.href} className="text-sm font-semibold text-gray-600 hover:text-gray-900">

@@ -12,6 +12,10 @@ import MatchModal from '@/components/MatchModal';
 import ProfileSheet from '@/components/ProfileSheet';
 import { getMyUserId, markMatchesSeen } from '@/lib/seenMatches';
 import { notificationService } from '@/lib/notifications';
+import { refreshLocationIfPermitted } from '@/lib/permissions';
+
+// How long a swiped card takes to fly off screen
+const EXIT_MS = 320;
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -26,7 +30,9 @@ export default function DiscoverPage() {
   const [hasDragged, setHasDragged] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  // Swipe animation: the card flying out, then the next one easing in
+  const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
+  const [entering, setEntering] = useState(false);
   const [seenProfileIds, setSeenProfileIds] = useState<number[]>([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchedUser, setMatchedUser] = useState<any>(null);
@@ -56,6 +62,8 @@ export default function DiscoverPage() {
     fetchProfiles();
     fetchLikedYouCount();
     fetchUnreadCount();
+    // Keeps distances current if the user has moved; no prompt, throttled, no-op without permission
+    refreshLocationIfPermitted();
   }, []);
 
   const fetchProfiles = async () => {
@@ -107,6 +115,7 @@ export default function DiscoverPage() {
               photoPath.startsWith('http') ? photoPath : `${API_URL}${photoPath}`
             ),
             bio: profile.bio || '',
+            letterboxdUsername: profile.letterboxdUsername || null,
             about: profile.bio || '',
             interests: profile.interests || [],
             favoriteGenres: profile.interests || [],
@@ -191,12 +200,44 @@ export default function DiscoverPage() {
 
   const profile = profiles[currentProfile];
 
-  const handleSwipe = async (direction: 'left' | 'right') => {
-    // Handle swipe logic
-    console.log(direction === 'right' ? 'Liked!' : 'Skipped!');
-    
-    // Mark current profile as seen
+  // Flies the card off in the swipe direction right away; the like/pass is saved in the background
+  // so the animation never waits on the network (a match still pops up when the reply arrives).
+  const handleSwipe = (direction: 'left' | 'right') => {
+    if (exitDirection) return; // already animating a card out
     const currentProfileData = profiles[currentProfile];
+    setIsDragging(false);
+    setExitDirection(direction);
+    recordSwipe(currentProfileData, direction);
+
+    setTimeout(() => {
+      if (currentProfile < profiles.length - 1) {
+        setCurrentProfile(currentProfile + 1);
+      } else {
+        // Reached end of profiles, fetch new ones
+        setCurrentProfile(0);
+        fetchProfiles();
+      }
+      // Next card starts small and transparent, then eases in (see the `entering` effect)
+      setEntering(true);
+      setExitDirection(null);
+      setDragOffset({ x: 0, y: 0 });
+    }, EXIT_MS);
+  };
+
+  // Let the browser paint the "entering" starting point before animating to the resting state
+  useEffect(() => {
+    if (!entering) return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setEntering(false));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [entering]);
+
+  const recordSwipe = async (currentProfileData: any, direction: 'left' | 'right') => {
     if (currentProfileData && currentProfileData.userId) {
       const updatedSeenIds = [...seenProfileIds, currentProfileData.userId];
       setSeenProfileIds(updatedSeenIds);
@@ -277,29 +318,9 @@ export default function DiscoverPage() {
         }
       }
     }
-    
-    // Start transition
-    setIsTransitioning(true);
-    
-    // Wait for card to animate out
-    setTimeout(() => {
-      if (currentProfile < profiles.length - 1) {
-        setCurrentProfile(currentProfile + 1);
-      } else {
-        // Reached end of profiles, fetch new ones
-        setCurrentProfile(0);
-        fetchProfiles();
-      }
-      
-      // Reset drag state
-      setDragOffset({ x: 0, y: 0 });
-      
-      // End transition
-      setIsTransitioning(false);
 
-      // Anyone just liked back or passed drops off the Likes badge
-      fetchLikedYouCount();
-    }, 300);
+    // Anyone just liked back or passed drops off the Likes badge
+    fetchLikedYouCount();
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -310,6 +331,7 @@ export default function DiscoverPage() {
   };
 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (exitDirection) return; // ignore grabs while the previous card is still flying out
     setIsDragging(true);
     setHasDragged(false); // Reset drag flag
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -502,14 +524,34 @@ export default function DiscoverPage() {
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 pt-4 pb-28">
-        <div className="w-full max-w-sm flex flex-col items-center">
+        <div className="w-full max-w-sm tablet:max-w-none tablet:w-[min(28rem,calc((100dvh-310px)*0.62))] flex flex-col items-center">
           {/* Profile Card */}
           <div
-            className={`relative w-full h-[min(620px,calc(100dvh-260px))] min-h-[460px] rounded-[28px] overflow-hidden bg-[#111827] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.45)] ring-1 ring-black/5 cursor-grab active:cursor-grabbing select-none touch-pan-y ${isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
-            style={{
-              transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${dragOffset.x * 0.08}deg)`,
-              transition: isDragging ? 'none' : isTransitioning ? 'all 0.3s ease-out' : 'transform 0.3s ease-out',
-            }}
+            className="relative w-full h-[min(620px,calc(100dvh-260px))] min-h-[460px] tablet:h-auto tablet:min-h-0 tablet:aspect-[31/50] rounded-[28px] overflow-hidden bg-[#111827] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.45)] ring-1 ring-black/5 cursor-grab active:cursor-grabbing select-none touch-pan-y will-change-transform"
+            style={(() => {
+              // Flying out: keep the drag's height and tilt, carry on well past the screen edge
+              if (exitDirection) {
+                const dir = exitDirection === 'right' ? 1 : -1;
+                const flyX = (typeof window !== 'undefined' ? window.innerWidth : 800) * 1.1;
+                return {
+                  transform: `translate(${dir * flyX}px, ${dragOffset.y + 40}px) rotate(${dir * 24}deg)`,
+                  opacity: 0,
+                  transition: `transform ${EXIT_MS}ms cubic-bezier(0.4, 0, 0.6, 1), opacity ${EXIT_MS}ms ease-in`,
+                };
+              }
+              // Next card: start slightly small and transparent, painted once without animating
+              if (entering) {
+                return { transform: 'scale(0.94)', opacity: 0, transition: 'none' };
+              }
+              return {
+                transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${dragOffset.x * 0.06}deg)`,
+                opacity: 1,
+                // Follow the finger exactly while dragging; otherwise ease in, or spring back if not swiped far enough
+                transition: isDragging
+                  ? 'none'
+                  : 'transform 380ms cubic-bezier(0.175, 0.885, 0.32, 1.2), opacity 260ms ease-out',
+              };
+            })()}
             onMouseDown={handleDragStart}
             onMouseMove={handleDragMove}
             onMouseUp={handleDragEnd}
@@ -542,47 +584,26 @@ export default function DiscoverPage() {
               Top 4 films
             </div>
 
-            {/* Swipe feedback: a colored glow from the swipe side and a badge that grows in */}
+            {/* Swipe feedback: a small frosted icon that fades in, heart for like, X for pass */}
             {(() => {
-              const likeProgress = isDragging ? Math.min(Math.max((dragOffset.x - 20) / 100, 0), 1) : 0;
-              const nopeProgress = isDragging ? Math.min(Math.max((-dragOffset.x - 20) / 100, 0), 1) : 0;
-              const badge = (progress: number) => ({
-                opacity: progress,
-                transform: `translateX(-50%) scale(${0.6 + progress * 0.4})`,
-              });
+              // Stays fully shown while the card flies out (also when the buttons were used)
+              const likeProgress = exitDirection === 'right' ? 1 : isDragging ? Math.min(Math.max((dragOffset.x - 20) / 100, 0), 1) : 0;
+              const nopeProgress = exitDirection === 'left' ? 1 : isDragging ? Math.min(Math.max((-dragOffset.x - 20) / 100, 0), 1) : 0;
+              const progress = Math.max(likeProgress, nopeProgress);
+              if (progress === 0) return null;
               return (
-                <>
-                  <div
-                    className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-l from-emerald-500/55 via-emerald-500/15 to-transparent"
-                    style={{ opacity: likeProgress }}
-                  />
-                  <div
-                    className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-r from-rose-500/55 via-rose-500/15 to-transparent"
-                    style={{ opacity: nopeProgress }}
-                  />
-
-                  <div className="absolute top-1/3 left-1/2 z-30 pointer-events-none" style={badge(likeProgress)}>
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-24 h-24 rounded-full bg-white/95 shadow-[0_12px_40px_rgba(16,185,129,0.55)] flex items-center justify-center ring-4 ring-emerald-400/60">
-                        <Heart className="w-12 h-12 text-emerald-500" fill="currentColor" />
-                      </div>
-                      <span className="px-4 py-1 rounded-full bg-emerald-500 text-white text-sm font-extrabold tracking-[0.2em] shadow-lg">
-                        LIKE
-                      </span>
-                    </div>
+                <div
+                  className="absolute top-1/3 left-1/2 z-30 pointer-events-none"
+                  style={{ opacity: progress, transform: `translate(-50%, -50%) scale(${0.85 + progress * 0.15})` }}
+                >
+                  <div className="w-16 h-16 rounded-full bg-black/45 backdrop-blur-md ring-1 ring-white/30 flex items-center justify-center">
+                    {likeProgress > 0 ? (
+                      <Heart className="w-7 h-7 text-white" fill="currentColor" />
+                    ) : (
+                      <X className="w-7 h-7 text-white" strokeWidth={3} />
+                    )}
                   </div>
-
-                  <div className="absolute top-1/3 left-1/2 z-30 pointer-events-none" style={badge(nopeProgress)}>
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-24 h-24 rounded-full bg-white/95 shadow-[0_12px_40px_rgba(244,63,94,0.55)] flex items-center justify-center ring-4 ring-rose-400/60">
-                        <X className="w-12 h-12 text-rose-500" strokeWidth={3.5} />
-                      </div>
-                      <span className="px-4 py-1 rounded-full bg-rose-500 text-white text-sm font-extrabold tracking-[0.2em] shadow-lg">
-                        NOPE
-                      </span>
-                    </div>
-                  </div>
-                </>
+                </div>
               );
             })()}
 
@@ -593,16 +614,19 @@ export default function DiscoverPage() {
             <div className="absolute inset-x-0 bottom-0 p-5 text-white">
               <div className="flex items-end gap-4">
                 <div className="relative flex-shrink-0">
-                  <div className="w-24 h-24 rounded-full p-[3px] bg-white/90 shadow-xl">
-                    <img
-                      src={profile.image}
-                      alt={profile.name}
-                      draggable={false}
-                      className="w-full h-full rounded-full object-cover"
+                  {/* Story-style ring: thin fading gradient, dark gap, soft glow */}
+                  <div className="w-24 h-24 rounded-full p-[2px] bg-gradient-to-tr from-white/25 via-white/80 to-white shadow-[0_0_24px_rgba(255,255,255,0.25)]">
+                    <div className="w-full h-full rounded-full p-[3px] bg-black/70 backdrop-blur-sm">
+                      <img
+                        src={profile.image}
+                        alt={profile.name}
+                        draggable={false}
+                        className="w-full h-full rounded-full object-cover"
                       onError={(e) => {
                         e.currentTarget.src = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop';
                       }}
                     />
+                    </div>
                   </div>
                 </div>
 
@@ -739,8 +763,6 @@ export default function DiscoverPage() {
         profile={profile}
         isDarkMode={isDarkMode}
         onClose={() => setShowProfileDetails(false)}
-        onPass={() => handleSwipe('left')}
-        onLike={() => handleSwipe('right')}
       />
 
       {/* Logout confirmation */}
