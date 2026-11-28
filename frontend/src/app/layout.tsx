@@ -12,7 +12,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Cinephile',
-  description: 'A modern dating app to connect with people who share your interests',
+  description: 'A dating app for film lovers. Not just for dating, but for finding people who share your taste in films.',
 };
 
 export default function RootLayout({
