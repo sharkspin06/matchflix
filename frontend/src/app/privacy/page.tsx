@@ -21,7 +21,7 @@ const sections: LegalSection[] = [
         <p><strong>Information created when you use the Service</strong></p>
         <ul>
           <li>Who you like and pass on, your matches, and whether messages have been read.</li>
-          <li>Basic technical information needed to run the Service, such as your browser type and requests made to our servers.</li>
+          <li>Basic technical information needed to run the Service, such as your device type and requests made to our servers.</li>
         </ul>
       </>
     ),
@@ -34,7 +34,7 @@ const sections: LegalSection[] = [
         <li>To create and run your account and show your profile to other users.</li>
         <li>To suggest people on Discover, using your preferences and, if you allow it, your location.</li>
         <li>To create matches and deliver messages between you and your matches.</li>
-        <li>To send in-app and browser notifications about new matches and messages, if you allow them.</li>
+        <li>To send in-app and push notifications about new matches and messages, if you allow them.</li>
         <li>To keep the Service safe: checking that users are 18 or over, preventing abuse and enforcing our <Link href="/terms" className="underline underline-offset-2">Terms of Service</Link>.</li>
         <li>To fix problems and improve the Service.</li>
       </ul>
@@ -58,8 +58,8 @@ const sections: LegalSection[] = [
         <p>We don&apos;t sell your personal information. We share it only with:</p>
         <ul>
           <li><strong>Supabase</strong>, which hosts our database and stores your photos.</li>
-          <li><strong>The Movie Database (TMDB)</strong>: when you search for a film, your search text is sent from your browser to TMDB, and film posters are loaded from TMDB&apos;s servers.</li>
-          <li><strong>Other services that load content in the app</strong>, such as Google Fonts for text styling. These may receive your IP address when your browser loads from them.</li>
+          <li><strong>The Movie Database (TMDB)</strong>: when you search for a film, your search text is sent from the app to TMDB, and film posters are loaded from TMDB&apos;s servers.</li>
+          <li><strong>Other services that load content in the app</strong>, such as Google Fonts for text styling. These may receive your IP address when the app loads from them.</li>
           <li><strong>Authorities</strong>, if the law requires it or it&apos;s needed to protect someone&apos;s safety.</li>
         </ul>
       </>
@@ -69,7 +69,7 @@ const sections: LegalSection[] = [
     id: 'device',
     title: 'Storage on your device',
     body: (
-      <p>We store a few items in your browser so the app works: a login token so you stay signed in, your light or dark mode choice, and the profiles you&apos;ve already seen on Discover. Logging out removes the login token. We don&apos;t use advertising or tracking cookies.</p>
+      <p>We store a few items in the app on your device so it works: a login token so you stay signed in, your light or dark mode choice, and the profiles you&apos;ve already seen on Discover. Logging out removes the login token. We don&apos;t use advertising or tracking cookies.</p>
     ),
   },
   {
@@ -86,7 +86,7 @@ const sections: LegalSection[] = [
       <>
         <ul>
           <li><strong>Edit your profile</strong> at any time from your profile page.</li>
-          <li><strong>Location and notifications</strong> are optional; you can turn them off in your browser or device settings.</li>
+          <li><strong>Location and notifications</strong> are optional; you can turn them off in your phone&apos;s settings.</li>
           <li><strong>Unmatch, block or report</strong> anyone. Blocking removes your match and messages, and you won&apos;t see each other again. Reports are reviewed by us, and the person isn&apos;t told who reported them.</li>
           <li><strong>Delete your account</strong> at any time in the app (Home → Edit profile → Delete account) or at <Link href="/delete-account" className="underline underline-offset-2">our account deletion page</Link>.</li>
           <li><strong>Get a copy of your data:</strong> email {LEGAL.contactEmail} from the address you signed up with.</li>
@@ -121,6 +121,7 @@ const sections: LegalSection[] = [
 export default function PrivacyPage() {
   return (
     <LegalPage
+      logo="logo2"
       title="Privacy Policy"
       intro={
         <p>

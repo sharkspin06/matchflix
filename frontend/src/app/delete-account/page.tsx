@@ -73,7 +73,7 @@ export default function DeleteAccountPage() {
         <div className="relative max-w-3xl mx-auto h-16 px-4 flex items-center">
           <BackButton href="/" label="Home" />
           <Link href="/" aria-label={`${LEGAL.appName} home`} className="absolute left-1/2 -translate-x-1/2">
-            <Logo className="h-9" />
+            <Logo variant="logo2" className="h-8" />
           </Link>
         </div>
       </header>

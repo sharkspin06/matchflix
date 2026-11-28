@@ -23,23 +23,67 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      // Keep the server's machine-readable fields (e.g. code, retryAfter) on the error
+      throw Object.assign(new Error(error.error || 'Request failed'), {
+        status: response.status,
+        code: error.code,
+        retryAfter: error.retryAfter,
+      });
     }
 
     return response.json();
   }
 
   // Auth
+  /** Emails a sign-up code; the address must not be registered yet */
+  async sendSignupCode(email: string) {
+    return this.request<{ sent: boolean; codeLength: number; expiresInSeconds: number; resendInSeconds: number }>(
+      '/api/auth/signup-code',
+      { method: 'POST', body: JSON.stringify({ email }) }
+    );
+  }
+
+  /** Returns the token that register() needs to prove the email was verified */
+  async verifySignupCode(email: string, code: string) {
+    return this.request<{ verified: boolean; emailVerificationToken: string }>('/api/auth/signup-code/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
   async register(data: {
     email: string;
     password: string;
     name: string;
     birthday: string;
     gender: string;
+    emailVerificationToken: string;
   }) {
     return this.request<{ token: string; user: any }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Forgot password: email a code -> check it -> set the new password
+  async sendPasswordResetCode(email: string) {
+    return this.request<{ sent: boolean; codeLength: number; expiresInSeconds: number; resendInSeconds: number }>(
+      '/api/auth/password-reset/code',
+      { method: 'POST', body: JSON.stringify({ email }) }
+    );
+  }
+
+  async verifyPasswordResetCode(email: string, code: string) {
+    return this.request<{ verified: boolean; resetToken: string }>('/api/auth/password-reset/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
+  async resetPassword(resetToken: string, newPassword: string) {
+    return this.request<{ success: boolean }>('/api/auth/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ resetToken, newPassword }),
     });
   }
 

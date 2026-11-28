@@ -83,6 +83,7 @@
 /* Surfaces */
 .dark .theme-surface .bg-white { background-color: #1f2937; }
 .dark .theme-surface .bg-white\/90 { background-color: rgb(17 24 39 / 0.9); }
+.dark .theme-surface .bg-white\/85 { background-color: rgb(17 24 39 / 0.85); }
 .dark .theme-surface .bg-white\/60 { background-color: rgb(17 24 39 / 0.6); }
 .dark .theme-surface .bg-gray-50 { background-color: #1f2937; }
 .dark .theme-surface .bg-gray-100 { background-color: #2b3545; }
@@ -319,4 +320,67 @@
       transform: scale(1);
     }
   }
+}
+
+/*
+  Cinematic login / sign-up card (AuthShell). Always dark; these refine the
+  shared dark overrides above so fields look like frosted glass on the posters.
+*/
+.dark .theme-surface.auth-shell .bg-white { background-color: #2a2e35; }
+.dark .theme-surface.auth-shell .hover\:bg-gray-100:hover { background-color: rgb(255 255 255 / 0.1); }
+.dark .theme-surface.auth-shell .border-gray-200 { border-color: rgb(255 255 255 / 0.1); }
+.dark .theme-surface.auth-shell .border-gray-300 { border-color: rgb(255 255 255 / 0.25); }
+.dark .theme-surface.auth-shell .hover\:border-gray-300:hover { border-color: rgb(255 255 255 / 0.22); }
+.dark .theme-surface.auth-shell .bg-gray-200 { background-color: rgb(255 255 255 / 0.12); }
+.dark .theme-surface.auth-shell input:not([type='range']):not([type='checkbox']):not([type='radio']) {
+  background-color: transparent;
+}
+.dark .theme-surface.auth-shell .focus-within\:border-\[\#1f2937\]:focus-within { border-color: #d1d5db; }
+.dark .theme-surface.auth-shell .focus-within\:ring-\[\#1f2937\]\/10:focus-within { --tw-ring-color: rgb(255 255 255 / 0.12); }
+.dark .theme-surface.auth-shell .text-\[\#1f2937\] { color: #f3f4f6; }
+/* Password strength colors that are too dim on the dark card */
+.dark .theme-surface.auth-shell .text-orange-600 { color: #fdba74; }
+.dark .theme-surface.auth-shell .text-amber-600 { color: #fcd34d; }
+.dark .theme-surface.auth-shell .text-lime-700 { color: #bef264; }
+/* Keep browser autofill from painting fields bright yellow/white */
+.auth-shell input:-webkit-autofill {
+  -webkit-text-fill-color: #f3f4f6;
+  -webkit-box-shadow: 0 0 0 1000px #2a2e35 inset;
+  caret-color: #f3f4f6;
+}
+
+@keyframes auth-drift {
+  from { transform: rotate(-8deg) translateY(0); }
+  to { transform: rotate(-8deg) translateY(-6%); }
+}
+.auth-drift { animation: auth-drift 60s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-drift { animation: none; }
+}
+/*
+  Pill fields (login style), wherever they're used. See components/pillStyles.ts.
+  .auth-input = input inside a pill wrapper (transparent); .auth-field = the input is the pill.
+*/
+.dark .theme-surface input.auth-input:not([type='range']):not([type='checkbox']):not([type='radio']) {
+  background-color: transparent;
+  color: #f3f4f6;
+}
+.dark .theme-surface input.auth-field:not([type='range']):not([type='checkbox']):not([type='radio']),
+.dark .theme-surface textarea.auth-field {
+  background-color: #2a2e35;
+  color: #f3f4f6;
+}
+.dark .theme-surface input.auth-input::placeholder,
+.dark .theme-surface .auth-field::placeholder { color: #9ca3af; }
+input.auth-input:-webkit-autofill,
+input.auth-field:-webkit-autofill {
+  -webkit-text-fill-color: #111827;
+  -webkit-box-shadow: 0 0 0 1000px #f1f2f4 inset;
+  caret-color: #111827;
+}
+.dark input.auth-input:-webkit-autofill,
+.dark input.auth-field:-webkit-autofill {
+  -webkit-text-fill-color: #f3f4f6;
+  -webkit-box-shadow: 0 0 0 1000px #2a2e35 inset;
+  caret-color: #f3f4f6;
 }

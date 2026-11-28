@@ -30,5 +30,3 @@ export const ORIENTATION_OPTIONS = [
 export const ORIENTATION_HELP =
   'This is what Cinephile uses to match you with compatible people and to decide who sees your profile. It stays private and is never shown on your profile.';
 
-export const GENDER_HELP =
-  'Your actual gender. Lesbian and gay are sexual orientations, not gender identities — you can choose those on the next step.';

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import ThemeToggle from '@/components/ThemeToggle';
 import Wordmark from '@/components/Wordmark';
+import PosterBackdrop from '@/components/PosterBackdrop';
 
 const SPLASH_DURATION_MS = 1800;
 const SPLASH_FADE_MS = 500;
@@ -147,11 +147,10 @@ export default function Home() {
   return (
     <>
     {splashPhase !== 'done' && <SplashScreen visible={splashPhase === 'show'} animateIn />}
+    {/* Always dark: the poster background needs light text whatever the app theme */}
+    <div className="dark">
     <div className={`theme-surface min-h-screen flex items-center justify-center px-4 wide:px-16 relative bg-white transition-[opacity,background-color] duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
-      {/* Light / dark mode */}
-      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-30">
-        <ThemeToggle />
-      </div>
+      <PosterBackdrop />
 
       {/* Left Side - Decorative Cards */}
       <div className="hidden wide:flex flex-1 items-center justify-center relative max-w-2xl">
@@ -252,7 +251,6 @@ export default function Home() {
               className="group w-full h-14 px-6 inline-flex items-center justify-center gap-2 bg-[#1f2937] hover:bg-[#111827] text-white text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
             >
               Create an Account
-              <ArrowRight className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-1" />
             </button>
 
             {/* Sign In Button */}
@@ -278,6 +276,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+    </div>
     </div>
     </>
   );

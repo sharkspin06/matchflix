@@ -8,6 +8,9 @@ import SelectMenu from '@/components/SelectMenu';
 import BirthdayInput from '@/components/BirthdayInput';
 import OptionSheet from '@/components/OptionSheet';
 import { ORIENTATION_OPTIONS, ORIENTATION_HELP } from '@/lib/identity';
+import { PILL_ON, PILL_OFF, CARD_ON, CARD_OFF, FIELD_BOX, FIELD_SOLID } from '@/components/pillStyles';
+import AuthInput from '@/components/AuthInput';
+import RangeSlider from '@/components/RangeSlider';
 import BackButton from '@/components/BackButton';
 
 // Favorite genres are stored in the profile's `interests` field, which Discover shows as genre chips
@@ -765,12 +768,15 @@ export default function HomePage() {
 
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                <input
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                <AuthInput
                   type="text"
+                  name="name"
+                  icon={<UserRound />}
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent"
+                  placeholder="Your name"
+                  autoComplete="given-name"
                 />
               </div>
 
@@ -778,6 +784,7 @@ export default function HomePage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">Birthday</label>
                 <BirthdayInput
+                  appearance="auth"
                   value={editForm.birthday}
                   onChange={(birthday) => {
                     const age = birthdayToAge(birthday);
@@ -826,10 +833,8 @@ export default function HomePage() {
                         role="radio"
                         aria-checked={selected}
                         onClick={() => setEditForm((current) => ({ ...current, sexualOrientation: [value] }))}
-                        className={`h-10 px-4 rounded-full border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
-                          selected
-                            ? 'bg-[#1f2937] border-[#1f2937] text-white'
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                        className={`h-12 px-5 rounded-full border text-[15px] font-medium transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed ${
+                          selected ? PILL_ON : PILL_OFF
                         }`}
                       >
                         {label}
@@ -851,14 +856,14 @@ export default function HomePage() {
                     type="text"
                     value={editForm.location}
                     onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent"
+                    className={`flex-1 min-w-0 h-14 px-5 rounded-full ${FIELD_SOLID}`}
                     placeholder="City, Country"
                   />
                   <button
                     type="button"
                     onClick={handleGetLocation}
                     disabled={gettingLocation}
-                    className="px-4 py-3 bg-[#1f2937] text-white rounded-lg hover:bg-[#111827] transition-all duration-200 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-14 px-5 bg-[#1f2937] text-white rounded-full hover:bg-[#111827] transition-all duration-200 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {gettingLocation ? (
                       <>
@@ -917,7 +922,7 @@ export default function HomePage() {
                   value={editForm.bio}
                   onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                   rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent resize-none"
+                  className={`w-full px-5 py-4 rounded-3xl resize-none ${FIELD_SOLID}`}
                   placeholder="Tell us about yourself..."
                 />
               </div>
@@ -927,8 +932,8 @@ export default function HomePage() {
                 <label htmlFor="letterboxd" className="block text-sm font-medium text-gray-700 mb-2">
                   Letterboxd <span className="font-normal text-gray-400">(optional)</span>
                 </label>
-                <div className="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-[#1f2937] focus-within:border-transparent">
-                  <span className="pl-4 text-gray-400 select-none">letterboxd.com/</span>
+                <div className={`group flex items-center h-14 rounded-full transition-all duration-200 ${FIELD_BOX}`}>
+                  <span className="pl-5 text-[15px] text-[#6b7280] dark:text-[#8b93a1] select-none">letterboxd.com/</span>
                   <input
                     id="letterboxd"
                     type="text"
@@ -938,7 +943,7 @@ export default function HomePage() {
                     spellCheck={false}
                     value={editForm.letterboxdUsername}
                     onChange={(e) => setEditForm({ ...editForm, letterboxdUsername: e.target.value })}
-                    className="flex-1 min-w-0 pr-4 py-3 bg-transparent border-0 focus:outline-none focus:ring-0"
+                    className="auth-input flex-1 min-w-0 h-full pr-5 bg-transparent border-0 text-[15px] text-[#111827] placeholder:text-[#6b7280] focus:outline-none focus:ring-0"
                     placeholder="username"
                   />
                 </div>
@@ -992,7 +997,7 @@ export default function HomePage() {
                         searchFilms(e.target.value);
                       }}
                       placeholder="Search for films to add..."
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1f2937] focus:border-transparent"
+                      className={`w-full h-14 px-5 rounded-full ${FIELD_SOLID}`}
                     />
                     
                     {/* Search Results */}
@@ -1073,10 +1078,8 @@ export default function HomePage() {
                               : [...current.interests, genre].slice(0, MAX_GENRES),
                           }))
                         }
-                        className={`inline-flex items-center gap-1.5 h-10 pl-3 pr-3.5 rounded-full border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
-                          selected
-                            ? 'bg-[#1f2937] border-[#1f2937] text-white'
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                        className={`inline-flex items-center gap-1.5 h-12 pl-3.5 pr-4 rounded-full border text-[15px] font-medium transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed ${
+                          selected ? PILL_ON : PILL_OFF
                         }`}
                       >
                         {selected ? (
@@ -1104,17 +1107,25 @@ export default function HomePage() {
                   <label className="text-base font-semibold text-gray-800">Distance Range</label>
                   <span className="text-base font-semibold text-[#1f2937]">{editForm.preferredDistance} km</span>
                 </div>
+                {/* Reversed on purpose: drag left for farther, right for closer (fill grows from the right) */}
                 <input
                   type="range"
                   min="1"
                   max="200"
+                  dir="rtl"
+                  aria-label="Distance range in kilometres"
                   value={editForm.preferredDistance}
                   onChange={(e) => setEditForm({ ...editForm, preferredDistance: parseInt(e.target.value) })}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1f2937]"
                   style={{
-                    background: `linear-gradient(to right, #1f2937 0%, #1f2937 ${(editForm.preferredDistance / 200) * 100}%, #e5e7eb ${(editForm.preferredDistance / 200) * 100}%, #e5e7eb 100%)`
+                    direction: 'rtl',
+                    background: `linear-gradient(to left, #1f2937 0%, #1f2937 ${((editForm.preferredDistance - 1) / 199) * 100}%, #e5e7eb ${((editForm.preferredDistance - 1) / 199) * 100}%, #e5e7eb 100%)`
                   }}
                 />
+                <div className="mt-2 flex justify-between text-xs text-gray-500">
+                  <span>200 km</span>
+                  <span>1 km</span>
+                </div>
               </div>
 
               {/* Age Range */}
@@ -1143,52 +1154,21 @@ export default function HomePage() {
                     </p>
                   );
                 })()}
-                <div className="relative h-8 flex items-center">
-                  {/* Track background */}
-                  <div className="absolute w-full h-2 bg-gray-200 rounded-lg pointer-events-none"></div>
-                  {/* Active track */}
-                  <div 
-                    className="absolute h-2 bg-[#1f2937] rounded-lg pointer-events-none"
-                    style={{
-                      left: `${((editForm.preferredAgeMin - MIN_DATING_AGE) / (MAX_PREFERRED_AGE - MIN_DATING_AGE)) * 100}%`,
-                      right: `${100 - ((editForm.preferredAgeMax - MIN_DATING_AGE) / (MAX_PREFERRED_AGE - MIN_DATING_AGE)) * 100}%`
-                    }}
-                  ></div>
-                  {/* Min slider */}
-                  <input
-                    type="range"
-                    min={MIN_DATING_AGE}
-                    max={MAX_PREFERRED_AGE}
-                    value={editForm.preferredAgeMin}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      if (val < editForm.preferredAgeMax) {
-                        setEditForm({ ...editForm, preferredAgeMin: val });
-                      }
-                    }}
-                    className="absolute w-full appearance-none bg-transparent cursor-pointer range-slider-min"
-                    style={{ zIndex: 3 }}
-                  />
-                  {/* Max slider */}
-                  <input
-                    type="range"
-                    min={MIN_DATING_AGE}
-                    max={MAX_PREFERRED_AGE}
-                    value={editForm.preferredAgeMax}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      if (val > editForm.preferredAgeMin) {
-                        setEditForm({ ...editForm, preferredAgeMax: val });
-                      }
-                    }}
-                    className="absolute w-full appearance-none bg-transparent cursor-pointer range-slider-max"
-                    style={{ zIndex: 4 }}
-                  />
+                <RangeSlider
+                  min={MIN_DATING_AGE}
+                  max={MAX_PREFERRED_AGE}
+                  low={editForm.preferredAgeMin}
+                  high={editForm.preferredAgeMax}
+                  onChange={(low, high) => setEditForm((current) => ({ ...current, preferredAgeMin: low, preferredAgeMax: high }))}
+                  format={(age) => (age >= MAX_PREFERRED_AGE ? `${age}+` : String(age))}
+                  labels={['Youngest age', 'Oldest age']}
+                />
+                <div className="mt-1 flex justify-between text-xs text-gray-500">
+                  <span>{MIN_DATING_AGE}</span>
+                  <span>{MAX_PREFERRED_AGE}+</span>
                 </div>
+                {/* Handle style for the Distance slider above */}
                 <style jsx>{`
-                  input[type="range"] {
-                    pointer-events: none;
-                  }
                   input[type="range"]::-webkit-slider-thumb {
                     appearance: none;
                     width: 20px;
@@ -1198,8 +1178,6 @@ export default function HomePage() {
                     cursor: pointer;
                     border: 3px solid white;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    pointer-events: auto;
-                    position: relative;
                   }
                   input[type="range"]::-moz-range-thumb {
                     width: 20px;
@@ -1209,13 +1187,6 @@ export default function HomePage() {
                     cursor: pointer;
                     border: 3px solid white;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    pointer-events: auto;
-                  }
-                  input[type="range"]::-webkit-slider-runnable-track {
-                    height: 0;
-                  }
-                  input[type="range"]::-moz-range-track {
-                    height: 0;
                   }
                 `}</style>
               </div>
@@ -1240,15 +1211,13 @@ export default function HomePage() {
                         type="button"
                         onClick={() => toggleRelationshipGoal(value)}
                         aria-pressed={selected}
-                        className={`group relative flex flex-col items-start gap-3 p-4 rounded-2xl border text-left ${
-                          selected
-                            ? 'border-[#1f2937] bg-gray-50 shadow-[0_0_0_1px_#1f2937]'
-                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/60'
+                        className={`group relative flex flex-col items-start gap-3 p-4 rounded-3xl border text-left transition-all duration-200 active:scale-[0.99] ${
+                          selected ? CARD_ON : CARD_OFF
                         }`}
                       >
                         <span
                           className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 ${
-                            selected ? 'bg-[#1f2937] text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                            selected ? 'bg-[#1f2937] text-white' : 'bg-[#e3e5e9] text-gray-600 dark:bg-[#3a3f47] dark:text-[#d1d5db]'
                           }`}
                         >
                           <Icon className="w-5 h-5" />
@@ -1259,7 +1228,7 @@ export default function HomePage() {
                         </span>
                         <span
                           className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                            selected ? 'border-[#1f2937] bg-[#1f2937]' : 'border-gray-300'
+                            selected ? 'border-[#1f2937] bg-[#1f2937]' : 'border-gray-300 dark:border-[#4b515a]'
                           }`}
                         >
                           {selected && <Check className="w-3 h-3 text-white" strokeWidth={3.5} />}

@@ -202,3 +202,14 @@ model Report {
   @@index([reportedId])
   @@map("reports")
 }
+
+// One pending sign-up code per email address; deleted once the code is used
+model EmailVerification {
+  email      String   @id
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now()) // when the current code was sent
+
+  @@map("email_verifications")
+}

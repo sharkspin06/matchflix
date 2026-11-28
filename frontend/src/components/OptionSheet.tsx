@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { PILL_ON, PILL_OFF } from '@/components/pillStyles';
 import { Check, X } from 'lucide-react';
 
 export interface SheetOption {
@@ -88,10 +89,8 @@ export default function OptionSheet({ open, title, question, icon: Icon, options
                   type="button"
                   onClick={() => pick(optionValue)}
                   aria-pressed={selected}
-                  className={`relative flex items-center gap-2.5 min-h-[52px] px-3.5 py-3 rounded-2xl border text-left text-sm font-medium ${
-                    selected
-                      ? 'bg-[#1f2937] border-[#1f2937] text-white shadow-[0_8px_20px_-8px_rgba(17,24,39,0.6)]'
-                      : 'bg-white border-gray-200 text-gray-800 hover:border-gray-300 hover:bg-gray-50'
+                  className={`relative flex items-center gap-2.5 min-h-[52px] px-4 py-3 rounded-full border text-left text-[15px] font-medium transition-all duration-200 active:scale-[0.98] ${
+                    selected ? PILL_ON : PILL_OFF
                   }`}
                 >
                   {emoji && <span className="text-lg leading-none flex-shrink-0">{emoji}</span>}

@@ -16,17 +16,19 @@ interface LegalPageProps {
   intro: React.ReactNode;
   sections: LegalSection[];
   other: { href: string; label: string };
+  /** Which logo the header shows; logo2 is the "cinephile ka ba?" wordmark */
+  logo?: 'default' | 'logo2';
 }
 
 /** Shared layout for the Terms of Service and Privacy Policy */
-export default function LegalPage({ title, intro, sections, other }: LegalPageProps) {
+export default function LegalPage({ title, intro, sections, other, logo = 'default' }: LegalPageProps) {
   return (
     <div className="theme-surface min-h-screen bg-white">
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-gray-100">
         <div className="relative max-w-3xl mx-auto h-16 px-4 flex items-center justify-between">
           <BackButton href="/" label="Home" />
           <Link href="/" aria-label="Cinephile home" className="absolute left-1/2 -translate-x-1/2">
-            <Logo className="h-9" />
+            <Logo variant={logo} className={logo === 'logo2' ? 'h-8' : 'h-9'} />
           </Link>
           <Link href={other.href} className="text-sm font-semibold text-gray-600 hover:text-gray-900">
             {other.label}

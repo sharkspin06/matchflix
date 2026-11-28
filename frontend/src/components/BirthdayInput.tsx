@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { FIELD_SOLID } from '@/components/pillStyles';
 
 interface BirthdayInputProps {
   /** YYYY-MM-DD, or '' while incomplete */
@@ -6,7 +7,16 @@ interface BirthdayInputProps {
   onChange: (value: string) => void;
   /** Shown under the fields, e.g. "You're 25" */
   hint?: React.ReactNode;
+  /** "auth": pills like the login fields (dark-gray in dark mode, light-gray in light mode) */
+  appearance?: 'default' | 'auth';
 }
+
+const BOX_STYLE = {
+  default:
+    'h-16 rounded-2xl border border-gray-200 bg-white text-gray-900 shadow-sm placeholder:text-gray-300 hover:border-gray-300 focus:border-[#1f2937] focus:ring-4 focus:ring-[#1f2937]/10',
+  // Login field style: light-gray pill in light mode, #2a2e35 in dark mode
+  auth: `h-14 rounded-full ${FIELD_SOLID} !text-2xl`,
+};
 
 type Segment = 'month' | 'day' | 'year';
 
@@ -21,7 +31,7 @@ const parse = (value: string) => {
   return { month, day, year };
 };
 
-export default function BirthdayInput({ value, onChange, hint }: BirthdayInputProps) {
+export default function BirthdayInput({ value, onChange, hint, appearance = 'default' }: BirthdayInputProps) {
   const [parts, setParts] = useState(() => parse(value));
   const refs = useRef<Record<Segment, HTMLInputElement | null>>({ month: null, day: null, year: null });
 
@@ -90,7 +100,7 @@ export default function BirthdayInput({ value, onChange, hint }: BirthdayInputPr
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
                 onFocus={(e) => e.target.select()}
-                className={`${width} h-16 rounded-2xl border border-gray-200 bg-white text-center text-2xl font-semibold tracking-wider text-gray-900 shadow-sm outline-none transition-all duration-200 placeholder:font-normal placeholder:text-gray-300 hover:border-gray-300 focus:border-[#1f2937] focus:ring-4 focus:ring-[#1f2937]/10`}
+                className={`${width} ${BOX_STYLE[appearance]} text-center text-2xl font-semibold tracking-wider outline-none transition-all duration-200 placeholder:font-normal`}
               />
             </label>
           </React.Fragment>

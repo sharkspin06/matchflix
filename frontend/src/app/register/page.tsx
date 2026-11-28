@@ -1,36 +1,39 @@
 'use client';
 
 import { API_URL } from '@/lib/config';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Upload, Eye, EyeOff, MapPin, Bell, Loader2, CheckCircle2, AlertCircle, Heart, Popcorn, Check, Search, Plus, X, Lock } from 'lucide-react';
+import { Upload, Eye, EyeOff, MapPin, Bell, Loader2, CheckCircle2, AlertCircle, Heart, Popcorn, Check, Search, Plus, X, Lock, Mail, MailCheck, UserRound } from 'lucide-react';
 import { api } from '@/lib/api';
 import { requestLocation, requestNotifications, UserLocation } from '@/lib/permissions';
-import ModernInput from '@/components/ModernInput';
+import AuthInput from '@/components/AuthInput';
+import OtpInput from '@/components/OtpInput';
 import BackButton from '@/components/BackButton';
+import AuthShell, { AUTH_BUTTON, AUTH_LINK } from '@/components/AuthShell';
 import Logo from '@/components/Logo';
 import Wordmark from '@/components/Wordmark';
 import BirthdayInput from '@/components/BirthdayInput';
 import PasswordStrength, { isStrongPassword } from '@/components/PasswordStrength';
 import { defaultAgeRange } from '@/lib/utils';
-import { GENDER_OPTIONS, ORIENTATION_OPTIONS, GENDER_HELP, ORIENTATION_HELP } from '@/lib/identity';
+import { GENDER_OPTIONS, ORIENTATION_OPTIONS, ORIENTATION_HELP } from '@/lib/identity';
 import PermissionSettingsDialog, { type PermissionKind } from '@/components/PermissionSettingsDialog';
 import GuidelinesModal from '@/components/GuidelinesModal';
 
 const STEPS = {
   ACCOUNT: 1,
-  LOCATION: 2,
-  NOTIFICATIONS: 3,
-  NAME: 4,
-  BIRTHDAY: 5,
-  GENDER: 6,
-  ORIENTATION: 7,
-  MODE: 8,
-  INTERESTED_IN: 9,
-  PHOTOS: 10,
-  FILMS: 11,
-  WELCOME: 12,
+  VERIFY: 2,
+  LOCATION: 3,
+  NOTIFICATIONS: 4,
+  NAME: 5,
+  BIRTHDAY: 6,
+  GENDER: 7,
+  ORIENTATION: 8,
+  MODE: 9,
+  INTERESTED_IN: 10,
+  PHOTOS: 11,
+  FILMS: 12,
+  WELCOME: 13,
 };
 
 const GENDERS = GENDER_OPTIONS;
@@ -51,6 +54,7 @@ const MIN_AGE = 18;
 const MAX_AGE = 100;
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // Matches the backend upload limit
 const FILM_COUNT = 4;
+const CODE_LENGTH = 6;
 
 const PRIMARY_BUTTON = 'w-full h-12 px-5 bg-[#1f2937] hover:bg-[#111827] text-white font-semibold rounded-xl transition-all duration-200 ease-out active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300 disabled:opacity-50 disabled:cursor-not-allowed';
 const SECONDARY_BUTTON = 'w-full py-3 px-5 text-gray-600 hover:text-[#1f2937] font-medium transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed';
@@ -111,13 +115,17 @@ function OptionButton({ selected, onClick, children }: {
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  // Same pill as the login fields; the chosen one turns white like the main button
   return (
     <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
       onClick={onClick}
-      className={`py-3 px-4 rounded-lg border-2 font-medium transition-all duration-200 ${
+      className={`h-14 px-4 rounded-full border text-[15px] font-medium transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#ffffff]/20 ${
         selected
-          ? 'bg-[#1f2937] text-white border-[#1f2937]'
-          : 'bg-white text-gray-700 border-gray-300 hover:border-[#1f2937]'
+          ? 'bg-[#f5f5f5] text-[#0b0d10] border-[#f5f5f5] font-semibold'
+          : 'bg-[#2a2e35] text-[#f3f4f6] border-[#3a3f47] hover:border-[#4b515a] hover:bg-[#31363e]'
       }`}
     >
       {children}
@@ -172,6 +180,19 @@ export default function RegisterPage() {
   const accountToken = useRef<string | null>(null);
   const uploadedPhotoCount = useRef(0);
 
+
+  // Email code (OTP) check before the account can be created
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+  const [codeNotice, setCodeNotice] = useState('');
+  // Proof from the server that `verifiedEmail` passed the code check; sent with register
+  const emailVerificationToken = useRef<string | null>(null);
+  const verifiedEmail = useRef('');
+  // Where to go after verifying; the last step when the proof expired during sign-up
+  const afterVerifyStep = useRef(STEPS.LOCATION);
 
   const [emailAvailable, setEmailAvailable] = useState(false);
   const emailCheckTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -240,7 +261,15 @@ export default function RegisterPage() {
     }, 300);
   };
 
-  const handleBack = () => goToStep(step - 1);
+  // The code screen is skipped going back: there's nothing to redo once the email is verified
+  const handleBack = () => goToStep(step === STEPS.LOCATION || step === STEPS.VERIFY ? STEPS.ACCOUNT : step - 1);
+
+  // Counts down until another code can be requested
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((left) => left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
 
   // Moves on when the current step is valid, otherwise shows why it isn't
   const continueIf = (validationError: string) => {
@@ -263,8 +292,68 @@ export default function RegisterPage() {
       return;
     }
     latestEmail.current = email;
-    if (await checkEmailAvailability(email)) {
+    if (!(await checkEmailAvailability(email))) return;
+
+    // Already verified this exact address (e.g. came back to fix the password)
+    if (emailVerificationToken.current && verifiedEmail.current === email.toLowerCase()) {
       goToStep(STEPS.LOCATION);
+      return;
+    }
+    afterVerifyStep.current = STEPS.LOCATION;
+    if (await sendCode()) goToStep(STEPS.VERIFY);
+  };
+
+  // Emails a code; returns false when there's no point showing the code screen
+  const sendCode = async () => {
+    const email = formData.email.trim();
+    setSendingCode(true);
+    setOtpError('');
+    setCodeNotice('');
+    try {
+      const result = await api.sendSignupCode(email);
+      setOtp('');
+      setResendIn(result.resendInSeconds);
+      return true;
+    } catch (err: any) {
+      if (err.status === 429 && err.retryAfter) {
+        // A code went out less than a minute ago and still works
+        setResendIn(err.retryAfter);
+        return true;
+      }
+      if (err.status === 409) {
+        setEmailError('This email is already registered');
+        setEmailAvailable(false);
+        if (step !== STEPS.ACCOUNT) goToStep(STEPS.ACCOUNT);
+        return false;
+      }
+      if (step === STEPS.VERIFY) setOtpError(err.message);
+      else setError(err.message || "We couldn't send the code. Please try again.");
+      return false;
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendIn > 0 || sendingCode) return;
+    if (await sendCode()) setCodeNotice('A new code is on its way.');
+  };
+
+  const verifyCode = async (code: string) => {
+    if (verifyingCode || code.length !== CODE_LENGTH) return;
+    setVerifyingCode(true);
+    setOtpError('');
+    try {
+      const email = formData.email.trim();
+      const result = await api.verifySignupCode(email, code);
+      emailVerificationToken.current = result.emailVerificationToken;
+      verifiedEmail.current = email.toLowerCase();
+      goToStep(afterVerifyStep.current);
+    } catch (err: any) {
+      setOtpError(err.message || "That code didn't work. Please try again.");
+      setOtp('');
+    } finally {
+      setVerifyingCode(false);
     }
   };
 
@@ -388,10 +477,11 @@ export default function RegisterPage() {
       if (!accountToken.current) {
         const response = await api.register({
           name: formData.name.trim(),
-          email: formData.email,
+          email: formData.email.trim(),
           password: formData.password,
           birthday: formData.birthday,
           gender: formData.gender,
+          emailVerificationToken: emailVerificationToken.current || '',
         });
         accountToken.current = response.token;
         localStorage.setItem('token', response.token);
@@ -420,13 +510,178 @@ export default function RegisterPage() {
       }, 500);
       // The overlay stays up until Discover opens
     } catch (err: any) {
-      setError(err.message || 'Registration failed');
       setLoading(false);
       setCreateStage({ step: 0, label: '' });
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        // The verification lasts a few hours; get a fresh code, then come straight back here
+        emailVerificationToken.current = null;
+        afterVerifyStep.current = STEPS.WELCOME;
+        if (await sendCode()) {
+          goToStep(STEPS.VERIFY);
+          setTimeout(() => setCodeNotice('Your email verification expired. We sent you a new code.'), 350);
+        }
+        return;
+      }
+      setError(err.message || 'Registration failed');
     }
   };
 
+  // Step 1 uses the cinematic login-style screen; the later steps keep the regular layout
+  if (step === STEPS.ACCOUNT) {
+    return (
+      <AuthShell fading={isTransitioning} cardHidden={isStepTransitioning}>
+        <div className="space-y-6">
+          <div className="text-center">
+            <Wordmark className="h-12 sm:h-14 mx-auto mb-5" />
+            <h2 className="text-2xl sm:text-[28px] font-bold tracking-tight text-white mb-1.5">Create Your Account</h2>
+            <p className="text-gray-400 text-sm">Start your journey to find your perfect match</p>
+          </div>
+
+          <ErrorMessage message={error} />
+
+          <div className="space-y-4">
+            <AuthInput
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Email"
+              icon={<Mail />}
+              autoComplete="email"
+              required
+              status={emailStatus}
+              trailing={
+                checkingEmail ? (
+                  <Loader2 className="w-5 h-5 mr-3 text-gray-400 animate-spin" />
+                ) : emailStatus === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 mr-3 text-emerald-500" />
+                ) : emailStatus === 'error' ? (
+                  <AlertCircle className="w-5 h-5 mr-3 text-red-500" />
+                ) : null
+              }
+              helperText={
+                emailError
+                  ? emailError
+                  : emailStatus === 'success'
+                    ? 'Email is available'
+                    : undefined
+              }
+            />
+
+            <AuthInput
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Password"
+              icon={<Lock />}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              status={formData.password && isStrongPassword(formData.password) ? 'success' : showPasswordErrors ? 'error' : 'default'}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="p-2.5 rounded-full text-[#8b93a1] hover:text-[#f3f4f6] hover:bg-[#ffffff]/10 transition-all duration-200 ease-out"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              }
+            />
+            <PasswordStrength password={formData.password} showErrors={showPasswordErrors} />
+          </div>
+
+          <button onClick={handleAccountNext} disabled={sendingCode || checkingEmail} className={AUTH_BUTTON}>
+            {sendingCode ? 'Sending code…' : 'Continue'}
+          </button>
+
+          <p className="text-center text-sm text-gray-400">
+            Already have an account?{' '}
+            <Link href="/login" className={AUTH_LINK}>
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  if (step === STEPS.VERIFY) {
+    return (
+      <AuthShell fading={isTransitioning} cardHidden={isStepTransitioning} onBack={handleBack}>
+        <div className="space-y-6">
+          <div className="text-center">
+            <span className="mx-auto mb-5 flex w-16 h-16 items-center justify-center rounded-full bg-[#2a2e35] border border-[#3a3f47]">
+              <MailCheck className="w-8 h-8 text-[#f3f4f6]" />
+            </span>
+            <h2 className="text-2xl sm:text-[28px] font-bold tracking-tight text-white mb-1.5">Check your email</h2>
+            <p className="text-gray-400 text-sm">
+              We sent a {CODE_LENGTH}-digit code to
+              <br />
+              <span className="font-semibold text-[#f3f4f6] break-all">{formData.email.trim()}</span>
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <OtpInput
+              value={otp}
+              onChange={(value) => {
+                setOtp(value);
+                if (otpError) setOtpError('');
+              }}
+              onComplete={verifyCode}
+              length={CODE_LENGTH}
+              disabled={verifyingCode}
+              invalid={Boolean(otpError)}
+              autoFocus
+            />
+            <p className="min-h-[20px] text-center text-[13px]" aria-live="polite">
+              {otpError ? (
+                <span className="text-red-600">{otpError}</span>
+              ) : codeNotice ? (
+                <span className="text-emerald-600">{codeNotice}</span>
+              ) : (
+                <span className="text-gray-500">The code expires in 10 minutes. Check your spam folder if you don&apos;t see it.</span>
+              )}
+            </p>
+          </div>
+
+          <button
+            onClick={() => verifyCode(otp)}
+            disabled={otp.length !== CODE_LENGTH || verifyingCode}
+            className={AUTH_BUTTON}
+          >
+            {verifyingCode ? 'Verifying…' : 'Verify email'}
+          </button>
+
+          <div className="text-center text-sm text-gray-400 space-y-2">
+            <p>
+              Didn&apos;t get a code?{' '}
+              {resendIn > 0 ? (
+                <span className="text-gray-500">Resend in {resendIn}s</span>
+              ) : (
+                <button type="button" onClick={handleResendCode} disabled={sendingCode} className={`${AUTH_LINK} disabled:opacity-50`}>
+                  {sendingCode ? 'Sending…' : 'Resend code'}
+                </button>
+              )}
+            </p>
+            <p>
+              Wrong email?{' '}
+              <button type="button" onClick={() => goToStep(STEPS.ACCOUNT)} className={AUTH_LINK}>
+                Change it
+              </button>
+            </p>
+          </div>
+        </div>
+      </AuthShell>
+    );
+  }
+
   return (
+    // Always dark, like the first sign-up step, whatever the app theme
+    <div className="dark">
     <div
       className={`theme-surface min-h-[100dvh] bg-white flex items-start sm:items-center justify-center px-4 pt-12 pb-8 sm:py-8 relative transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
     >
@@ -465,89 +720,6 @@ export default function RegisterPage() {
 
       {/* Content */}
       <div className={`w-full max-w-md transition-all duration-300 relative z-10 ${isStepTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-        {/* Step 1: Create account */}
-        {step === STEPS.ACCOUNT && (
-          <>
-            {/* Back to Home Button */}
-            <BackButton href="/" label="Home" className="mb-2 ml-6 sm:ml-8" />
-
-            <div className="space-y-6 px-6 pt-4 pb-8 sm:px-8">
-              <div className="text-center mb-8">
-                <Wordmark className="h-14 sm:h-16 mx-auto mb-4" />
-                <h2 className="text-2xl font-semibold text-gray-800 mb-2">Create Your Account</h2>
-                <p className="text-gray-600 text-sm">Start your journey to find your perfect match</p>
-              </div>
-
-              <ErrorMessage message={error} />
-
-              <div className="space-y-4">
-                <ModernInput
-                  type="email"
-                  name="email"
-                  label="Email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  required
-                  status={emailStatus}
-                  trailing={
-                    checkingEmail ? (
-                      <Loader2 className="w-5 h-5 mr-2 text-gray-400 animate-spin" />
-                    ) : emailStatus === 'success' ? (
-                      <CheckCircle2 className="w-5 h-5 mr-2 text-emerald-500" />
-                    ) : emailStatus === 'error' ? (
-                      <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
-                    ) : null
-                  }
-                  helperText={
-                    emailError
-                      ? emailError
-                      : emailStatus === 'success'
-                        ? 'Email is available'
-                        : undefined
-                  }
-                />
-
-                <ModernInput
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  label="Password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Create a strong password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  status={formData.password && isStrongPassword(formData.password) ? 'success' : showPasswordErrors ? 'error' : 'default'}
-                  trailing={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-200 ease-out"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  }
-                />
-                <PasswordStrength password={formData.password} showErrors={showPasswordErrors} />
-              </div>
-
-              <button onClick={handleAccountNext} className={PRIMARY_BUTTON}>
-                Continue
-              </button>
-
-              <p className="text-center text-sm text-gray-600">
-                Already have an account?{' '}
-                <Link href="/login" className="text-[#1f2937] hover:text-[#111827] font-semibold hover:underline">
-                  Sign in
-                </Link>
-              </p>
-            </div>
-          </>
-        )}
-
         {/* Step 2: Location */}
         {step === STEPS.LOCATION && (
           <StepCard
@@ -608,13 +780,14 @@ export default function RegisterPage() {
         {/* Step 4: Preferred name */}
         {step === STEPS.NAME && (
           <StepCard title="What's your preferred name?" subtitle="This is how you'll appear on Cinephile" error={error} onBack={handleBack}>
-            <ModernInput
+            <AuthInput
               type="text"
               name="name"
-              label="Preferred name"
+              icon={<UserRound />}
               value={formData.name}
               onChange={handleChange}
-              placeholder="Your name"
+              placeholder="Your preferred name"
+              autoComplete="given-name"
               required
             />
             <button onClick={() => continueIf(formData.name.trim() ? '' : 'Please enter your name')} className={PRIMARY_BUTTON}>
@@ -627,6 +800,7 @@ export default function RegisterPage() {
         {step === STEPS.BIRTHDAY && (
           <StepCard title="When's your birthday?" subtitle="Your age will be shown on your profile" error={error} onBack={handleBack}>
             <BirthdayInput
+              appearance="auth"
               value={formData.birthday}
               onChange={(birthday) => {
                 setError('');
@@ -646,8 +820,8 @@ export default function RegisterPage() {
 
         {/* Step 6: Gender identity */}
         {step === STEPS.GENDER && (
-          <StepCard title="What's your gender identity?" subtitle={GENDER_HELP} error={error} onBack={handleBack}>
-            <div className="grid grid-cols-2 gap-3">
+          <StepCard title="What's your gender identity?" error={error} onBack={handleBack}>
+            <div role="radiogroup" aria-label="Gender identity" className="grid grid-cols-2 gap-3">
               {GENDERS.map(({ value, label }) => (
                 <OptionButton
                   key={value}
@@ -667,7 +841,7 @@ export default function RegisterPage() {
         {/* Step 7: Sexual orientation */}
         {step === STEPS.ORIENTATION && (
           <StepCard title="What's your sexual orientation?" subtitle={ORIENTATION_HELP} error={error} onBack={handleBack}>
-            <div className="grid grid-cols-2 gap-3">
+            <div role="radiogroup" aria-label="Sexual orientation" className="grid grid-cols-2 gap-3">
               {ORIENTATION_OPTIONS.map(({ value, label }) => {
                 const selected = formData.sexualOrientation[0] === value;
                 return (
@@ -750,7 +924,7 @@ export default function RegisterPage() {
         {/* Step 8: Interested in */}
         {step === STEPS.INTERESTED_IN && (
           <StepCard title="Who are you interested in?" error={error} onBack={handleBack}>
-            <div className="grid grid-cols-3 gap-3">
+            <div role="radiogroup" aria-label="Interested in" className="grid grid-cols-3 gap-3">
               {INTERESTS.map(({ value, label }) => (
                 <OptionButton
                   key={value}
@@ -802,13 +976,13 @@ export default function RegisterPage() {
             {/* Search */}
             <div className="relative">
               <div
-                className={`relative flex items-center rounded-xl border bg-white shadow-sm transition-all duration-200 ${
+                className={`group relative flex items-center rounded-full border bg-[#2a2e35] transition-all duration-200 ${
                   topFilms.length < FILM_COUNT
-                    ? 'border-gray-200 hover:border-gray-300 focus-within:border-[#1f2937] focus-within:ring-4 focus-within:ring-[#1f2937]/10'
-                    : 'border-gray-100 bg-gray-50'
+                    ? 'border-[#3a3f47] hover:border-[#4b515a] focus-within:border-[#d1d5db] focus-within:ring-4 focus-within:ring-[#ffffff]/10'
+                    : 'border-[#3a3f47] opacity-60'
                 }`}
               >
-                <Search className="absolute left-4 w-5 h-5 text-gray-400 pointer-events-none" />
+                <Search className="absolute left-5 w-5 h-5 text-[#8b93a1] pointer-events-none transition-colors group-focus-within:text-[#f3f4f6]" />
                 <input
                   ref={filmSearchInput}
                   type="text"
@@ -816,9 +990,9 @@ export default function RegisterPage() {
                   onChange={handleSearchChange}
                   disabled={topFilms.length >= FILM_COUNT}
                   placeholder={topFilms.length >= FILM_COUNT ? 'All 4 films chosen' : 'Search for a film...'}
-                  className="w-full h-14 pl-12 pr-12 bg-transparent outline-none text-[15px] text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed"
+                  className="auth-input w-full h-14 pl-[52px] pr-12 bg-transparent outline-none text-[15px] text-[#f3f4f6] disabled:cursor-not-allowed"
                 />
-                {searching && <Loader2 className="absolute right-4 w-5 h-5 text-gray-400 animate-spin" />}
+                {searching && <Loader2 className="absolute right-5 w-5 h-5 text-[#8b93a1] animate-spin" />}
               </div>
 
               {searchResults.length > 0 && (
@@ -964,6 +1138,7 @@ export default function RegisterPage() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

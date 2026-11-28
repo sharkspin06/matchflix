@@ -93,6 +93,7 @@ const sections: LegalSection[] = [
 export default function ChildSafetyPage() {
   return (
     <LegalPage
+      logo="logo2"
       title="Child Safety Standards"
       intro={
         <p>

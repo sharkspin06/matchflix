@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { FIELD_BOX } from '@/components/pillStyles';
 import { Check, ChevronDown } from 'lucide-react';
 
 export interface SelectOption {
@@ -87,21 +88,19 @@ export default function SelectMenu({ value, onChange, options, placeholder = 'Se
         aria-labelledby={label ? `${id}-label` : undefined}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={handleKeyDown}
-        className={`w-full h-14 pl-4 pr-3 flex items-center gap-3 rounded-xl border bg-white text-left shadow-sm ${
-          open
-            ? 'border-[#1f2937] ring-4 ring-[#1f2937]/10'
-            : 'border-gray-200 hover:border-gray-300'
+        className={`group w-full h-14 pl-3 pr-4 flex items-center gap-3 rounded-full text-left transition-all duration-200 ${FIELD_BOX} ${
+          open ? '!border-[#1f2937] ring-4 ring-[#1f2937]/10 dark:!border-[#d1d5db] dark:ring-[#ffffff]/10' : ''
         }`}
       >
         {Icon && (
-          <span className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-            <Icon className="w-4 h-4 text-gray-600" />
+          <span className="w-9 h-9 rounded-full bg-[#e3e5e9] dark:bg-[#3a3f47] flex items-center justify-center flex-shrink-0">
+            <Icon className="w-4 h-4 text-[#4b5563] dark:text-[#d1d5db]" />
           </span>
         )}
-        <span className={`flex-1 truncate text-[15px] ${selected ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+        <span className={`flex-1 truncate text-[15px] ${selected ? 'text-[#111827] dark:text-[#f3f4f6] font-medium' : 'text-[#6b7280] dark:text-[#9ca3af]'}`}>
           {selected ? selected.label : placeholder}
         </span>
-        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-5 h-5 text-[#6b7280] dark:text-[#8b93a1] transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <div
