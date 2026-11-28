@@ -24,7 +24,9 @@ const allowedOrigins = [
   'http://localhost',
   'https://localhost',
   'capacitor://localhost',
-  'https://matchflix-frontend.vercel.app',
+  // Website (the bare domain redirects to www). The old matchflix-frontend.vercel.app address is retired.
+  'https://cinephileph.com',
+  'https://www.cinephileph.com',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
