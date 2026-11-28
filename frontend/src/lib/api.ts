@@ -34,6 +34,14 @@ class ApiClient {
     return response.json();
   }
 
+  /** Website beta waitlist (no account needed) */
+  async joinBeta(name: string, email: string, device: 'android' | 'ios') {
+    return this.request<{ joined: boolean }>('/api/beta/signup', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, device }),
+    });
+  }
+
   // Auth
   /** Emails a sign-up code; the address must not be registered yet */
   async sendSignupCode(email: string) {

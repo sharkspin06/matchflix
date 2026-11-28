@@ -213,3 +213,14 @@ model EmailVerification {
 
   @@map("email_verifications")
 }
+
+// Website visitors who asked to join the beta (cinephileph.com). One row per email address.
+model BetaSignup {
+  id        String   @id @default(uuid())
+  email     String   @unique // stored lowercase
+  name      String
+  device    String?  // android or ios
+  createdAt DateTime @default(now())
+
+  @@map("beta_signups")
+}

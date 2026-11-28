@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import Wordmark from '@/components/Wordmark';
 import PosterBackdrop from '@/components/PosterBackdrop';
+import BetaModals, { type BetaModal } from '@/components/BetaModals';
+import { Capacitor } from '@capacitor/core';
 
 const SPLASH_DURATION_MS = 1800;
 const SPLASH_FADE_MS = 500;
@@ -92,14 +94,19 @@ export default function Home() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [splashPhase, setSplashPhase] = useState<'show' | 'fading' | 'done'>('show');
+  // The website (cinephileph.com) shows the beta sign-up; the Android/iOS app keeps the account buttons
+  const [isNative, setIsNative] = useState(false);
+  const [betaModal, setBetaModal] = useState<BetaModal>(null);
 
   useEffect(() => {
+    setIsNative(Capacitor.isNativePlatform());
     setMounted(true);
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    const token = localStorage.getItem('token');
+    // Only the app jumps straight to Discover for signed-in users; the website always shows the beta page
+    const token = isNative ? localStorage.getItem('token') : null;
 
     // Show the maroon splash once per app launch; skip it when returning to this screen
     let seen = false;
@@ -131,7 +138,7 @@ export default function Home() {
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
     };
-  }, [mounted, router]);
+  }, [mounted, isNative, router]);
 
   if (!mounted) {
     return <SplashScreen visible animateIn={false} />;
@@ -236,6 +243,33 @@ export default function Home() {
             <Wordmark className="h-14 sm:h-16 wide:h-20" />
           </div>
           <MobileHero />
+          {!isNative ? (
+          <>
+          <div className="flex flex-col items-center mt-4 mb-6 wide:mt-0 wide:mb-10">
+            <h1 className="w-full text-gray-900 text-center text-lg wide:text-xl font-semibold leading-snug text-balance">
+              Join our early access community and help shape the experience.
+            </h1>
+          </div>
+
+          <div className="space-y-3 mt-8 wide:mt-16">
+            <button
+              onClick={() => setBetaModal('join')}
+              className="w-full h-14 px-6 inline-flex items-center justify-center bg-[#1f2937] hover:bg-[#111827] text-white text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
+            >
+              Join the Beta Program
+            </button>
+            <button
+              onClick={() => setBetaModal('learn')}
+              className="w-full h-14 px-6 inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-[#1f2937] text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
+            >
+              Learn More
+            </button>
+            <p className="pt-1 text-center text-sm text-gray-500">Limited beta tester slots available.</p>
+          </div>
+          <BetaModals open={betaModal} setOpen={setBetaModal} />
+          </>
+          ) : (
+          <>
           <div className="flex flex-col items-center mt-4 mb-6 wide:mt-0 wide:mb-10">
             <p className="w-full text-gray-600 text-center text-sm leading-relaxed text-balance">
               Follow mo naman ako sa Letterboxd.
@@ -274,6 +308,8 @@ export default function Home() {
               </Link>
             </p>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import messageRoutes from './routes/message.routes';
 import safetyRoutes from './routes/safety.routes';
 import accountRoutes from './routes/account.routes';
 import passRoutes from './routes/pass.routes';
+import betaRoutes from './routes/beta.routes';
 import { initializeSocket } from './socket/socket';
 
 dotenv.config();
@@ -63,6 +64,7 @@ app.use('/api/passes', passRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/safety', safetyRoutes);
 app.use('/api/account', accountRoutes);
+app.use('/api/beta', betaRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
