@@ -64,9 +64,11 @@ function MobileProfileCard({ posters, className }: { posters: string[][]; classN
   );
 }
 
-function MobileHero() {
+/** `compact` (the website's beta page) shrinks the cards so the whole page fits on one phone screen */
+function MobileHero({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="wide:hidden relative w-full max-w-[380px] h-[440px] mx-auto mb-1">
+    <div className={`wide:hidden relative w-full max-w-[380px] mx-auto mb-1 ${compact ? 'h-[330px]' : 'h-[440px]'}`}>
+      <div className={`absolute inset-x-0 bottom-0 h-[440px] ${compact ? 'scale-75 origin-bottom' : ''}`}>
       <MobileProfileCard
         className="left-2 bottom-6 w-[225px] h-[325px] -rotate-12"
         posters={[
@@ -85,6 +87,7 @@ function MobileHero() {
           ['/images/happytogether.jpg', 'Happy Together'],
         ]}
       />
+      </div>
     </div>
   );
 }
@@ -238,33 +241,33 @@ export default function Home() {
 
       {/* Right Side - Welcome Options */}
       <div className="w-full max-w-md wide:max-w-lg relative z-20">
-        <div className="px-4 py-6 sm:p-8 wide:p-12 mx-auto">
+        <div className={`px-4 sm:p-8 wide:p-12 mx-auto ${isNative ? 'py-6' : 'py-3'}`}>
           <div className="relative -top-1 wide:top-0 z-10 flex justify-center -mb-14 wide:mb-6">
             <Wordmark className="h-14 sm:h-16 wide:h-20" />
           </div>
-          <MobileHero />
+          <MobileHero compact={!isNative} />
           {!isNative ? (
           <>
-          <div className="flex flex-col items-center mt-4 mb-6 wide:mt-0 wide:mb-10">
-            <h1 className="w-full text-gray-900 text-center text-lg wide:text-xl font-semibold leading-snug text-balance">
+          <div className="flex flex-col items-center mt-2 wide:mt-0 wide:mb-10">
+            <h1 className="w-full text-gray-900 text-center text-base wide:text-xl font-semibold leading-snug text-balance">
               Join our early access community and help shape the experience.
             </h1>
           </div>
 
-          <div className="space-y-3 mt-8 wide:mt-16">
+          <div className="space-y-2.5 mt-5 wide:mt-16 wide:space-y-3">
             <button
               onClick={() => setBetaModal('join')}
-              className="w-full h-14 px-6 inline-flex items-center justify-center bg-[#1f2937] hover:bg-[#111827] text-white text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
+              className="w-full h-12 wide:h-14 px-6 inline-flex items-center justify-center bg-[#1f2937] hover:bg-[#111827] text-white text-[15px] wide:text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
             >
               Join the Beta Program
             </button>
             <button
               onClick={() => setBetaModal('learn')}
-              className="w-full h-14 px-6 inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-[#1f2937] text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
+              className="w-full h-12 wide:h-14 px-6 inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-[#1f2937] text-[15px] wide:text-base font-semibold rounded-full transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300"
             >
               Learn More
             </button>
-            <p className="pt-1 text-center text-sm text-gray-500">Limited beta tester slots available.</p>
+            <p className="pt-0.5 text-center text-xs wide:text-sm text-gray-500">Limited beta tester slots available.</p>
           </div>
           <BetaModals open={betaModal} setOpen={setBetaModal} />
           </>
