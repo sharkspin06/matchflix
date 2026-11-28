@@ -240,7 +240,7 @@ export default function Home() {
       </div>
 
       {/* Right Side - Welcome Options */}
-      <div className="w-full max-w-md wide:max-w-lg relative z-20">
+      <div className={`w-full max-w-md wide:max-w-lg relative z-20 ${isNative ? "" : "-top-8 wide:top-0"}`}>
         <div className={`px-4 sm:p-8 wide:p-12 mx-auto ${isNative ? 'py-6' : 'py-3'}`}>
           <div className="relative -top-1 wide:top-0 z-10 flex justify-center -mb-14 wide:mb-6">
             <Wordmark className="h-14 sm:h-16 wide:h-20" />
