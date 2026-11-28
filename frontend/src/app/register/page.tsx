@@ -4,10 +4,11 @@ import { API_URL } from '@/lib/config';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Upload, Eye, EyeOff, MapPin, Bell, Loader2, CheckCircle2, AlertCircle, Heart, Popcorn, Check, Search, Plus, X, Lock, Mail, MailCheck, UserRound } from 'lucide-react';
+import { Upload, Eye, EyeOff, MapPin, Bell, Loader2, CheckCircle2, AlertCircle, Heart, UserPlus, Smile, HeartHandshake, Check, Search, Plus, X, Lock, Mail, MailCheck, UserRound } from 'lucide-react';
 import { api } from '@/lib/api';
 import { requestLocation, requestNotifications, UserLocation } from '@/lib/permissions';
 import AuthInput from '@/components/AuthInput';
+import { CARD_ON, CARD_OFF } from '@/components/pillStyles';
 import OtpInput from '@/components/OtpInput';
 import BackButton from '@/components/BackButton';
 import AuthShell, { AUTH_BUTTON, AUTH_LINK } from '@/components/AuthShell';
@@ -39,9 +40,12 @@ const STEPS = {
 const GENDERS = GENDER_OPTIONS;
 
 // Values match the relationship goals on the profile edit page
+// Same options as "Here for" in Edit Profile (values match relationshipGoals there)
 const MODES = [
-  { value: 'Dating', label: 'Date', description: 'Find someone to fall in love with', icon: Heart },
-  { value: 'Friendship', label: 'Friend', description: 'Find someone to watch films with', icon: Popcorn },
+  { value: 'Dating', label: 'Dating', description: 'Find someone to fall for', icon: Heart },
+  { value: 'Friendship', label: 'Friendship', description: 'A film buddy to watch with', icon: UserPlus },
+  { value: 'Casual', label: 'Casual', description: 'Keep it light, see where it goes', icon: Smile },
+  { value: 'Serious Relationship', label: 'Serious', description: 'Looking for something long-term', icon: HeartHandshake },
 ];
 
 const INTERESTS = [
@@ -146,7 +150,7 @@ export default function RegisterPage() {
     birthday: '',
     gender: '',
     sexualOrientation: [] as string[],
-    mode: '',
+    modes: [] as string[],
     interestedIn: '',
   });
   const [location, setLocation] = useState<UserLocation | null>(null);
@@ -489,7 +493,7 @@ export default function RegisterPage() {
 
       setCreateStage({ step: 2, label: 'Setting up your profile' });
       await api.updateProfile({
-        relationshipGoals: [formData.mode],
+        relationshipGoals: formData.modes,
         preferredGender: [formData.interestedIn],
         sexualOrientation: formData.sexualOrientation,
         ...defaultAgeRange(calculateAge(formData.birthday)),
@@ -873,49 +877,49 @@ export default function RegisterPage() {
 
         {/* Step 7: Mode */}
         {step === STEPS.MODE && (
-          <StepCard title="Choose a mode to get started" error={error} onBack={handleBack}>
-            <div role="radiogroup" aria-label="Mode" className="grid gap-3">
+          <StepCard title="Choose a mode to get started" subtitle="Pick all that apply" error={error} onBack={handleBack}>
+            <div className="grid grid-cols-2 gap-2.5">
               {MODES.map(({ value, label, description, icon: Icon }) => {
-                const selected = formData.mode === value;
+                const selected = formData.modes.includes(value);
                 return (
                   <button
                     key={value}
                     type="button"
-                    role="radio"
-                    aria-checked={selected}
+                    aria-pressed={selected}
                     onClick={() => {
                       setError('');
-                      setFormData((current) => ({ ...current, mode: value }));
+                      setFormData((current) => ({
+                        ...current,
+                        modes: selected ? current.modes.filter((m) => m !== value) : [...current.modes, value],
+                      }));
                     }}
-                    className={`group flex items-center gap-4 w-full p-4 rounded-2xl border text-left transition-all duration-200 active:scale-[0.99] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300 ${
-                      selected
-                        ? 'border-[#1f2937] bg-gray-50 shadow-[0_0_0_1px_#1f2937]'
-                        : 'border-gray-200 bg-white shadow-sm hover:border-gray-300 hover:bg-gray-50/60'
+                    className={`group relative flex flex-col items-start gap-3 p-4 rounded-3xl border text-left transition-all duration-200 active:scale-[0.99] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#ffffff]/20 ${
+                      selected ? CARD_ON : CARD_OFF
                     }`}
                   >
                     <span
-                      className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ease-out ${
-                        selected ? 'bg-[#1f2937] text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 ${
+                        selected ? 'bg-[#1f2937] text-white' : 'bg-[#e3e5e9] text-gray-600 dark:bg-[#3a3f47] dark:text-[#d1d5db]'
                       }`}
                     >
-                      <Icon className="w-6 h-6" strokeWidth={2} />
+                      <Icon className="w-5 h-5" />
                     </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-base font-semibold text-gray-900">{label}</span>
-                      <span className="block text-sm text-gray-500 mt-0.5">{description}</span>
+                    <span>
+                      <span className="block text-sm font-semibold text-gray-900">{label}</span>
+                      <span className="block mt-0.5 text-xs leading-snug text-gray-500">{description}</span>
                     </span>
                     <span
-                      className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                        selected ? 'border-[#1f2937] bg-[#1f2937]' : 'border-gray-300'
+                      className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                        selected ? 'border-[#1f2937] bg-[#1f2937]' : 'border-gray-300 dark:border-[#4b515a]'
                       }`}
                     >
-                      {selected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                      {selected && <Check className="w-3 h-3 text-white" strokeWidth={3.5} />}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <button onClick={() => continueIf(formData.mode ? '' : 'Please choose a mode')} className={PRIMARY_BUTTON}>
+            <button onClick={() => continueIf(formData.modes.length ? '' : 'Please choose at least one')} className={PRIMARY_BUTTON}>
               Continue
             </button>
           </StepCard>
