@@ -821,7 +821,7 @@ export default function RegisterPage() {
         {/* Step 6: Gender identity */}
         {step === STEPS.GENDER && (
           <StepCard title="What's your gender identity?" error={error} onBack={handleBack}>
-            <div role="radiogroup" aria-label="Gender identity" className="grid grid-cols-2 gap-3">
+            <div role="radiogroup" aria-label="Gender identity" className="grid grid-cols-1 gap-3">
               {GENDERS.map(({ value, label }) => (
                 <OptionButton
                   key={value}

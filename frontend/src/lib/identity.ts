@@ -6,12 +6,16 @@ export const GENDER_OPTIONS = [
   { value: 'woman', label: 'Woman' },
   { value: 'man', label: 'Man' },
   { value: 'non-binary', label: 'Non-binary' },
-  { value: 'genderqueer', label: 'Genderqueer' },
-  { value: 'genderfluid', label: 'Genderfluid' },
-  { value: 'agender', label: 'Agender' },
-  { value: 'transgender', label: 'Transgender' },
-  { value: 'other', label: 'Other' },
 ];
+
+/** Older accounts may have a gender from the previous, longer list; show it so saving doesn't drop it */
+export const genderOptionsFor = (current: string) =>
+  !current || GENDER_OPTIONS.some((option) => option.value === current)
+    ? GENDER_OPTIONS
+    : [
+        ...GENDER_OPTIONS,
+        { value: current, label: current.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) },
+      ];
 
 /** Who you're attracted to. One choice per person. */
 export const ORIENTATION_OPTIONS = [

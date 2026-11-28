@@ -7,7 +7,7 @@ import { User, MapPin, Briefcase, Edit2, Camera, Heart, Film, LogOut, Home as Ho
 import SelectMenu from '@/components/SelectMenu';
 import BirthdayInput from '@/components/BirthdayInput';
 import OptionSheet from '@/components/OptionSheet';
-import { ORIENTATION_OPTIONS, ORIENTATION_HELP } from '@/lib/identity';
+import { ORIENTATION_OPTIONS, ORIENTATION_HELP, genderOptionsFor } from '@/lib/identity';
 import { PILL_ON, PILL_OFF, CARD_ON, CARD_OFF, FIELD_BOX, FIELD_SOLID } from '@/components/pillStyles';
 import AuthInput from '@/components/AuthInput';
 import RangeSlider from '@/components/RangeSlider';
@@ -807,17 +807,7 @@ export default function HomePage() {
                 placeholder="Select your gender"
                 value={editForm.gender}
                 onChange={(gender) => setEditForm({ ...editForm, gender })}
-                options={[
-                  { value: 'man', label: 'Man' },
-                  { value: 'woman', label: 'Woman' },
-                  { value: 'non-binary', label: 'Non-binary' },
-                  { value: 'transgender', label: 'Transgender' },
-                  { value: 'genderqueer', label: 'Genderqueer' },
-                  { value: 'genderfluid', label: 'Genderfluid' },
-                  { value: 'agender', label: 'Agender' },
-                  { value: 'other', label: 'Other' },
-                  { value: 'prefer-not-to-say', label: 'Prefer not to say' },
-                ]}
+                options={genderOptionsFor(editForm.gender)}
               />
 
               {/* Sexual orientation (private) */}
